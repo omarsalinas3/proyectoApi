@@ -52,7 +52,12 @@ public class ConfigDB {
             config.setJdbcUrl(env.getProperty("spring.datasource.url"));
             config.setPassword(env.getProperty("spring.datasource.password"));
             config.setUsername(env.getProperty("spring.datasource.username"));
+            String driverClass = env.getProperty("spring.datasource.driver-class-name");
+            if (driverClass != null && !driverClass.isBlank()) {
+                config.setDriverClassName(driverClass);
+            }
             config.setMaximumPoolSize(10);
+
             // CORRECCIÓN: maxLifetime mínimo recomendado por HikariCP es 30000 ms.
             config.setMaxLifetime(30000);
             config.setConnectionTimeout(5000);
@@ -83,12 +88,16 @@ public class ConfigDB {
             em.setJpaVendorAdapter(vendorAdapter);
 
             Map<String, Object> properties=new HashMap<>();
-            properties.put("hibernate.hbm2ddl.auto", "none");
+            properties.put("hibernate.hbm2ddl.auto", env.getProperty("spring.jpa.hibernate.ddl-auto", "update"));
             properties.put("hibernate.show-sql", false);
-            properties.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+            String dialect = env.getProperty("spring.jpa.properties.hibernate.dialect");
+            if (dialect != null && !dialect.isBlank()) {
+                properties.put("hibernate.dialect", dialect);
+            }
             properties.put("jakarta.persistence.query.timeout", 600000);
             // CORRECCIÓN: Se asigna el mapa de propiedades al EntityManagerFactory
             em.setJpaPropertyMap(properties);
+
 
         } catch (Exception e) {
             log.error("Ha ocurrido un error en la conexion a base de datos, a causa de: ", e);

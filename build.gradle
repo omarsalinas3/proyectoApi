@@ -80,8 +80,9 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.mockito:mockito-inline:5.1.1'
-    testImplementation 'com.h2database:h2:2.2.220'
+    runtimeOnly 'com.h2database:h2:2.2.220'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
     // CORRECCIÓN: Se removió la duplicidad de versiones de io.jsonwebtoken (jjwt-api:0.11.5) para evitar conflictos con 0.12.6
 }
 
