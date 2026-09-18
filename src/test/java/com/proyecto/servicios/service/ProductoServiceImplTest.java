@@ -1,5 +1,7 @@
 package com.proyecto.servicios.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.proyecto.servicios.client.ProductosClient;
 import com.proyecto.servicios.exception.ExternalServiceAuthException;
 import com.proyecto.servicios.exception.ExternalServiceException;
@@ -11,13 +13,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -26,7 +25,8 @@ import static org.mockito.Mockito.*;
  * Pruebas unitarias para la clase de servicio {@link ProductoServiceImpl}.
  *
  * <p>Valida los diferentes escenarios de integración según la especificación
- * técnica de PuntoRed / GestoPago para el endpoint {@code getProductList.do}.</p>
+ * técnica de PuntoRed / GestoPago para el endpoint {@code getProductList.do},
+ * incluyendo el parseo de XML nativo y JSON.</p>
  *
  * @author Equipo de Desarrollo
  * @version 1.0
@@ -38,62 +38,51 @@ class ProductoServiceImplTest {
     @Mock
     private ProductosClient productosClient;
 
-    @InjectMocks
+    private ObjectMapper objectMapper;
+
     private ProductoServiceImpl productoService;
 
-    private ProductoListResponse mockResponse;
+    private String xmlEjemploPuntoRed;
 
     @BeforeEach
     void setUp() {
-        ProductoItemDTO item1 = ProductoItemDTO.builder()
-                .idProducto(185L)
-                .idServicio(56)
-                .idCatTipoServicio(15)
-                .tipoFront(2)
-                .producto("Agua Cancun (Mun. de Benito Juarez y de Isla Mujeres)")
-                .servicio("AGUAKAN (Cancun)")
-                .precio(new BigDecimal("10.0"))
-                .tipoReferencia("c")
-                .hasDigitoVerificador(false)
-                .showAyuda(false)
-                .legend("Para cualquier duda o aclaracion con tu pago...")
-                .build();
+        objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        productoService = new ProductoServiceImpl(productosClient, objectMapper);
 
-        ProductoItemDTO item2 = ProductoItemDTO.builder()
-                .idProducto(200L)
-                .idServicio(71)
-                .idCatTipoServicio(10)
-                .tipoFront(1)
-                .producto("Amazon $100")
-                .servicio("Amazon")
-                .precio(new BigDecimal("100.0"))
-                .tipoReferencia("a")
-                .hasDigitoVerificador(false)
-                .showAyuda(false)
-                .legend("Para usar tu tarjeta ingresa a www.amazon.com.mx/gc/redeem/...")
-                .build();
-
-        mockResponse = ProductoListResponse.builder()
-                .codigo(200)
-                .mensaje("Operacion realizada con exito")
-                .totalRegistros(2L)
-                .fechaConsulta(LocalDateTime.now())
-                .productos(List.of(item1, item2))
-                .build();
+        xmlEjemploPuntoRed = "<?xml version='1.0' encoding='UTF-8'?>\n" +
+                "<RESPONSE>\n" +
+                "    <MENSAJE>\n" +
+                "        <CODIGO>01</CODIGO>\n" +
+                "        <TEXTO>Operacion realizada con exito</TEXTO>\n" +
+                "    </MENSAJE>\n" +
+                "    <PRODUCTOS>\n" +
+                "        <producto servicio='AGUAKAN (Cancun)' producto='Agua Cancun (Mun. de Benito Juarez y de Isla Mujeres)' idServicio='56' idProducto='185' idCatTipoServicio='15' tipoFront='2' hasDigitoVerificador='false' precio='10.0' showAyuda='false' tipoReferencia='c'>\n" +
+                "            <legend>\n" +
+                "                <![CDATA[Para cualquier duda o aclaracion con tu pago, comunicate al servicio de Atencion a clientes de AGUAKAN al telefono 073.]]>\n" +
+                "            </legend>\n" +
+                "        </producto>\n" +
+                "        <producto servicio='Amazon' producto='Amazon $100' idServicio='71' idProducto='200' idCatTipoServicio='10' tipoFront='1' hasDigitoVerificador='false' precio='100.0' showAyuda='false' tipoReferencia='a'>\n" +
+                "            <legend>\n" +
+                "                <![CDATA[Para usar tu tarjeta ingresa a www.amazon.com.mx/gc/redeem/ e ingresa el codigo de tu tarjeta.]]>\n" +
+                "            </legend>\n" +
+                "        </producto>\n" +
+                "    </PRODUCTOS>\n" +
+                "</RESPONSE>";
     }
 
     @Test
-    @DisplayName("Debe consultar y retornar la lista de productos de PuntoRed exitosamente")
-    void consultarListaProductos_exitoso() {
+    @DisplayName("Debe parsear y retornar la lista de productos desde la respuesta XML nativa de PuntoRed")
+    void consultarListaProductos_exitosoXml() {
         // Arrange
-        when(productosClient.getProductList()).thenReturn(mockResponse);
+        when(productosClient.getProductListRaw()).thenReturn(xmlEjemploPuntoRed);
 
         // Act
         ProductoListResponse resultado = productoService.consultarListaProductos();
 
         // Assert
         assertNotNull(resultado, "La respuesta no debe ser nula");
-        assertEquals(200, resultado.getCodigo());
+        assertEquals(1, resultado.getCodigo());
         assertEquals("Operacion realizada con exito", resultado.getMensaje());
         assertEquals(2L, resultado.getTotalRegistros());
         assertNotNull(resultado.getProductos());
@@ -102,19 +91,22 @@ class ProductoServiceImplTest {
         ProductoItemDTO prod1 = resultado.getProductos().get(0);
         assertEquals(185L, prod1.getIdProducto());
         assertEquals(56, prod1.getIdServicio());
+        assertEquals(15, prod1.getIdCatTipoServicio());
+        assertEquals(2, prod1.getTipoFront());
         assertEquals("AGUAKAN (Cancun)", prod1.getServicio());
         assertEquals(new BigDecimal("10.0"), prod1.getPrecio());
-        assertEquals(2, prod1.getTipoFront());
         assertFalse(prod1.getHasDigitoVerificador());
+        assertNotNull(prod1.getLegend());
+        assertTrue(prod1.getLegend().contains("AGUAKAN"));
 
-        verify(productosClient, times(1)).getProductList();
+        verify(productosClient, times(1)).getProductListRaw();
     }
 
     @Test
     @DisplayName("Debe propagar ExternalServiceAuthException cuando falla la autenticación (401/403)")
     void consultarListaProductos_errorAutenticacion() {
         // Arrange
-        when(productosClient.getProductList())
+        when(productosClient.getProductListRaw())
                 .thenThrow(new ExternalServiceAuthException("Your token is expired. Is just valid for 24 hours", 403));
 
         // Act & Assert
@@ -126,14 +118,14 @@ class ProductoServiceImplTest {
 
         assertEquals(403, excepcion.getStatusCode());
         assertTrue(excepcion.getMessage().contains("token is expired"));
-        verify(productosClient, times(1)).getProductList();
+        verify(productosClient, times(1)).getProductListRaw();
     }
 
     @Test
     @DisplayName("Debe propagar ExternalServiceTimeoutException cuando se agota el tiempo de espera (62s)")
     void consultarListaProductos_timeout() {
         // Arrange
-        when(productosClient.getProductList())
+        when(productosClient.getProductListRaw())
                 .thenThrow(new ExternalServiceTimeoutException("Tiempo de espera alcanzado"));
 
         // Act & Assert
@@ -144,14 +136,14 @@ class ProductoServiceImplTest {
         );
 
         assertTrue(excepcion.getMessage().contains("Tiempo de espera alcanzado"));
-        verify(productosClient, times(1)).getProductList();
+        verify(productosClient, times(1)).getProductListRaw();
     }
 
     @Test
     @DisplayName("Debe propagar ExternalServiceException cuando el servicio remoto responde con error 500")
     void consultarListaProductos_errorServicioExterno() {
         // Arrange
-        when(productosClient.getProductList())
+        when(productosClient.getProductListRaw())
                 .thenThrow(new ExternalServiceException("Error interno en servidor de PuntoRed", 500));
 
         // Act & Assert
@@ -162,23 +154,23 @@ class ProductoServiceImplTest {
         );
 
         assertEquals(500, excepcion.getStatusCode());
-        verify(productosClient, times(1)).getProductList();
+        verify(productosClient, times(1)).getProductListRaw();
     }
 
     @Test
-    @DisplayName("Debe manejar defensivamente una respuesta nula del cliente Feign")
-    void consultarListaProductos_respuestaNula() {
+    @DisplayName("Debe manejar defensivamente una respuesta nula o vacía del cliente Feign")
+    void consultarListaProductos_respuestaVacia() {
         // Arrange
-        when(productosClient.getProductList()).thenReturn(null);
+        when(productosClient.getProductListRaw()).thenReturn("");
 
         // Act
         ProductoListResponse resultado = productoService.consultarListaProductos();
 
         // Assert
-        assertNotNull(resultado, "El servicio debe retornar un DTO por defecto ante respuesta nula");
+        assertNotNull(resultado, "El servicio debe retornar un DTO por defecto ante respuesta vacía");
         assertEquals(204, resultado.getCodigo());
         assertEquals("No se obtuvo contenido del servicio externo", resultado.getMensaje());
         assertNotNull(resultado.getFechaConsulta());
-        verify(productosClient, times(1)).getProductList();
+        verify(productosClient, times(1)).getProductListRaw();
     }
 }

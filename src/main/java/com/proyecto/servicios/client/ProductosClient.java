@@ -1,7 +1,6 @@
 package com.proyecto.servicios.client;
 
 import com.proyecto.servicios.client.config.ProductosFeignConfig;
-import com.proyecto.servicios.model.producto.response.ProductoListResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
  * <ul>
  *   <li><strong>Endpoint consumido:</strong> {@code GET /sistema/service/getProductList.do}</li>
  *   <li><strong>Autenticación:</strong> Bearer Token inyectado vía {@link ProductosFeignConfig}.</li>
- *   <li><strong>Resiliencia:</strong> Timeouts de conexión y lectura gestionados por configuración.</li>
+ *   <li><strong>Formatos soportados:</strong> XML y JSON.</li>
  * </ul>
  * </p>
  *
@@ -28,13 +27,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 public interface ProductosClient {
 
     /**
-     * Consume el endpoint externo para obtener el listado completo de productos disponibles.
+     * Consume el endpoint externo para obtener el contenido en crudo (XML o JSON).
      *
-     * @return {@link ProductoListResponse} con los datos tipados de los productos obtenidos.
+     * @return {@link String} con el payload en crudo retornado por el servicio externo.
      */
     @GetMapping(
             value = "${servicio.externo.productos.endpoint.get-products:/sistema/service/getProductList.do}",
-            produces = MediaType.APPLICATION_JSON_VALUE
+            produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.TEXT_XML_VALUE, MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_PLAIN_VALUE}
     )
-    ProductoListResponse getProductList();
+    String getProductListRaw();
 }
