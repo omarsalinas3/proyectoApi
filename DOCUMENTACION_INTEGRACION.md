@@ -1,13 +1,15 @@
-# Documentación Técnica: Integración de Servicio Externo (`GET /sistema/service/getProductList.do`)
+# Documentación Técnica: Integración con PuntoRed / GestoPago (`GET /sistema/service/getProductList.do`)
 
 ## 1. Resumen Ejecutivo y Objetivo
-El objetivo de este desarrollo fue ambientar y habilitar la integración con el servicio externo `GET /sistema/service/getProductList.do` dentro de la arquitectura Spring Boot 3.3.6 (Java 17), garantizando:
-- Autenticación segura mediante **Bearer Token** desacoplada del código fuente y parametrizada vía propiedades/variables de entorno.
-- **Tipado estricto** en todos los modelos (evitando tipos genéricos `varchar`/`String` para identificadores, precios, estados y fechas).
+El objetivo de este desarrollo fue ambientar y habilitar la integración con la API de **PuntoRed / GestoPago** para el consumo del endpoint `GET /sistema/service/getProductList.do` (especificación oficial Postman: `https://documenter.getpostman.com/view/19876210/Uz5MFtdn#40f6fc4b-8942-490a-bdd4-a90d105867a6`), bajo las siguientes características:
+- Autenticación mediante **Bearer Token** y soporte opcional para **X-API-Key**.
+- **Tipado estricto** en todos los modelos: `idProducto` (`Long`), `idServicio` (`Integer`), `idCatTipoServicio` (`Integer`), `tipoFront` (`Integer`), `precio` (`BigDecimal`), `hasDigitoVerificador` (`Boolean`), `showAyuda` (`Boolean`), `tipoReferencia` (`String`), `legend` (`String`).
 - Exclusión automática de atributos con valor `null` (`@JsonInclude(NON_NULL)`).
-- **Manejo centralizado de excepciones** mediante `@RestControllerAdvice` y `ErrorDecoder` de OpenFeign.
+- **Manejo centralizado de excepciones** mediante `@RestControllerAdvice` y `ProductosErrorDecoder` de Feign.
+- **Estructura de ramas Git:** `main`, `develop` y `configuracion-inicial`.
 - Cobertura de **pruebas unitarias con JUnit 5 y Mockito**.
 - Código 100% documentado con **Javadoc en español**.
+
 
 ---
 
