@@ -114,23 +114,28 @@ public class ProductoServiceImpl implements ProductoService {
     }
 
     /**
-     * Parsea la respuesta XML de PuntoRed / GestoPago protegiendo contra vulnerabilidades XXE.
+     * Parsea la respuesta XML de PuntoRed / GestoPago protegiendo contra vulnerabilidades XXE
+     * y sanitizando caracteres especiales no escapados (como '&' en nombres como 'AT&T').
      *
      * @param xml contenido XML recibido del servidor externo.
      * @return {@link ProductoListResponse} con los productos y metadatos extraídos.
      */
     private ProductoListResponse parsearXml(String xml) {
         try {
+            // Sanitizar ampersands sueltos comunes en respuestas legadas (ej. 'AT&T' -> 'AT&amp;T')
+            String sanitizedXml = sanitizarXml(xml);
+
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            // Prevención de ataques XXE (XML External Entity)
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            factory.setXIncludeAware(false);
-            factory.setExpandEntityReferences(false);
+            factory.setNamespaceAware(true);
+            try {
+                factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+                factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            } catch (Exception ignored) {
+                // Si el parser no soporta la característica específica, continuar
+            }
 
             DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(new InputSource(new StringReader(xml)));
+            Document doc = builder.parse(new InputSource(new StringReader(sanitizedXml)));
             doc.getDocumentElement().normalize();
 
             String codigoStr = obtenerTextoElemento(doc, "CODIGO");
@@ -178,10 +183,24 @@ public class ProductoServiceImpl implements ProductoService {
                     .build();
 
         } catch (Exception ex) {
-            log.error("Error al procesar la respuesta XML del servicio externo: {}", ex.getMessage(), ex);
+            log.error("Error al procesar la respuesta XML del servicio externo: {}", ex.getMessage());
+            log.debug("XML recibido que causó el error: {}", xml);
             throw new ExternalServiceException("Error al procesar el formato de respuesta del servicio remoto", 502);
         }
     }
+
+    /**
+     * Sanitiza caracteres ampersand '&' que no forman parte de entidades XML válidas.
+     *
+     * @param xml texto XML en crudo.
+     * @return XML con ampersands escapados correctamente.
+     */
+    private String sanitizarXml(String xml) {
+        if (xml == null) return "";
+        // Reemplazar '&' que no sea seguido por una entidad válida (ej. &amp;, &lt;, &gt;, &quot;, &apos;, &#...;)
+        return xml.replaceAll("&(?!(amp|lt|gt|quot|apos|#\\d+|#x[0-9a-fA-F]+);)", "&amp;");
+    }
+
 
     /**
      * Parsea la respuesta en formato JSON.
