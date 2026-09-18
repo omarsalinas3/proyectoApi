@@ -1,7 +1,9 @@
 package com.proyecto.servicios.service.Impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.proyecto.servicios.client.ProductosClient;
+import com.proyecto.servicios.exception.ExternalServiceAuthException;
 import com.proyecto.servicios.exception.ExternalServiceException;
 import com.proyecto.servicios.model.producto.dto.ProductoItemDTO;
 import com.proyecto.servicios.model.producto.response.ProductoListResponse;
@@ -28,7 +30,7 @@ import java.util.List;
  * <p><strong>Principios aplicados:</strong>
  * <ul>
  *   <li>Inyección de dependencias por constructor.</li>
- *   <li>Soporte y parseo seguro de respuestas tanto en formato XML (nativo de PuntoRed) como JSON.</li>
+ *   <li>Soporte y parseo seguro de respuestas tanto en formato XML como JSON con estructuras anidadas de PuntoRed.</li>
  *   <li>Tipado estricto sin tipos varchar/genéricos para datos numéricos y booleanos.</li>
  *   <li>Registro y monitoreo con SLF4J (inicio, duración en ms y total de productos).</li>
  *   <li>Seguridad: Sin exposición de credenciales o tokens en trazas de log.</li>
@@ -122,7 +124,6 @@ public class ProductoServiceImpl implements ProductoService {
      */
     private ProductoListResponse parsearXml(String xml) {
         try {
-            // Sanitizar ampersands sueltos comunes en respuestas legadas (ej. 'AT&T' -> 'AT&amp;T')
             String sanitizedXml = sanitizarXml(xml);
 
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -131,7 +132,7 @@ public class ProductoServiceImpl implements ProductoService {
                 factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
                 factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             } catch (Exception ignored) {
-                // Si el parser no soporta la característica específica, continuar
+                // Fallback silencioso si no se soportan features específicas
             }
 
             DocumentBuilder builder = factory.newDocumentBuilder();
@@ -184,37 +185,166 @@ public class ProductoServiceImpl implements ProductoService {
 
         } catch (Exception ex) {
             log.error("Error al procesar la respuesta XML del servicio externo: {}", ex.getMessage());
-            log.debug("XML recibido que causó el error: {}", xml);
             throw new ExternalServiceException("Error al procesar el formato de respuesta del servicio remoto", 502);
         }
     }
 
     /**
-     * Sanitiza caracteres ampersand '&' que no forman parte de entidades XML válidas.
-     *
-     * @param xml texto XML en crudo.
-     * @return XML con ampersands escapados correctamente.
-     */
-    private String sanitizarXml(String xml) {
-        if (xml == null) return "";
-        // Reemplazar '&' que no sea seguido por una entidad válida (ej. &amp;, &lt;, &gt;, &quot;, &apos;, &#...;)
-        return xml.replaceAll("&(?!(amp|lt|gt|quot|apos|#\\d+|#x[0-9a-fA-F]+);)", "&amp;");
-    }
-
-
-    /**
-     * Parsea la respuesta en formato JSON.
+     * Parsea la respuesta en formato JSON de forma resiliente ante estructuras anidadas de PuntoRed.
      *
      * @param json contenido JSON recibido.
      * @return {@link ProductoListResponse} mapeado.
      */
     private ProductoListResponse parsearJson(String json) {
         try {
-            return objectMapper.readValue(json, ProductoListResponse.class);
+            JsonNode root = objectMapper.readTree(json);
+
+            // Validar si el servicio remoto retornó error de token expirado
+            if (root.has("token") && "EXPIRED".equalsIgnoreCase(root.get("token").asText())) {
+                String errorMsg = root.has("message") ? root.get("message").asText() : "El token de autenticación ha expirado";
+                log.warn("El servicio remoto indicó token expirado: {}", errorMsg);
+                throw new ExternalServiceAuthException("El token de autenticación con el servicio remoto ha expirado. " + errorMsg, 401);
+            }
+
+            // Validar si el servicio remoto retornó estado fallido explícito sin productos
+            if (root.has("success") && !root.get("success").asBoolean() && !root.has("productos") && !root.has("PRODUCTOS")) {
+                String errorMsg = root.has("message") ? root.get("message").asText() : "El servicio remoto retornó un estado fallido";
+                log.warn("El servicio remoto retornó respuesta no exitosa: {}", errorMsg);
+                throw new ExternalServiceException("El servicio remoto retornó respuesta no exitosa: " + errorMsg, 502);
+            }
+
+            // Extraer código
+            int codigo = 200;
+            if (root.has("codigo") && root.get("codigo").isNumber()) {
+                codigo = root.get("codigo").asInt();
+            } else if (root.has("CODIGO")) {
+                codigo = parsearEnteroSeguro(root.get("CODIGO").asText());
+            }
+
+            // Extraer mensaje (puede venir como String o como objeto anidado {CODIGO, TEXTO})
+            String mensaje = "Operacion realizada con exito";
+            if (root.has("mensaje")) {
+                JsonNode msgNode = root.get("mensaje");
+                if (msgNode.isObject()) {
+                    if (msgNode.has("texto")) mensaje = msgNode.get("texto").asText();
+                    else if (msgNode.has("TEXTO")) mensaje = msgNode.get("TEXTO").asText();
+                    if (msgNode.has("codigo")) codigo = parsearEnteroSeguro(msgNode.get("codigo").asText());
+                    else if (msgNode.has("CODIGO")) codigo = parsearEnteroSeguro(msgNode.get("CODIGO").asText());
+                } else {
+                    mensaje = msgNode.asText();
+                }
+            } else if (root.has("MENSAJE")) {
+                JsonNode msgNode = root.get("MENSAJE");
+                if (msgNode.isObject()) {
+                    if (msgNode.has("TEXTO")) mensaje = msgNode.get("TEXTO").asText();
+                    else if (msgNode.has("texto")) mensaje = msgNode.get("texto").asText();
+                    if (msgNode.has("CODIGO")) codigo = parsearEnteroSeguro(msgNode.get("CODIGO").asText());
+                    else if (msgNode.has("codigo")) codigo = parsearEnteroSeguro(msgNode.get("codigo").asText());
+                } else {
+                    mensaje = msgNode.asText();
+                }
+            } else if (root.has("message")) {
+                mensaje = root.get("message").asText();
+            }
+
+            // Extraer lista de productos
+            List<ProductoItemDTO> productos = new ArrayList<>();
+            JsonNode prodContainer = null;
+            if (root.has("productos")) prodContainer = root.get("productos");
+            else if (root.has("PRODUCTOS")) prodContainer = root.get("PRODUCTOS");
+
+            if (prodContainer != null) {
+                if (prodContainer.isArray()) {
+                    for (JsonNode itemNode : prodContainer) {
+                        productos.add(parsearItemJson(itemNode));
+                    }
+                } else if (prodContainer.isObject()) {
+                    JsonNode arrayOrObj = prodContainer.has("producto") ? prodContainer.get("producto") :
+                            (prodContainer.has("PRODUCTO") ? prodContainer.get("PRODUCTO") : null);
+
+                    if (arrayOrObj != null) {
+                        if (arrayOrObj.isArray()) {
+                            for (JsonNode itemNode : arrayOrObj) {
+                                productos.add(parsearItemJson(itemNode));
+                            }
+                        } else if (arrayOrObj.isObject()) {
+                            productos.add(parsearItemJson(arrayOrObj));
+                        }
+                    }
+                }
+            }
+
+            return ProductoListResponse.builder()
+                    .codigo(codigo)
+                    .mensaje(mensaje)
+                    .totalRegistros((long) productos.size())
+                    .fechaConsulta(LocalDateTime.now())
+                    .productos(productos)
+                    .build();
+
+        } catch (ExternalServiceAuthException | ExternalServiceException ex) {
+            throw ex;
         } catch (Exception ex) {
             log.error("Error al procesar la respuesta JSON del servicio externo: {}", ex.getMessage(), ex);
             throw new ExternalServiceException("Error al procesar el formato de respuesta del servicio remoto", 502);
         }
+    }
+
+    private ProductoItemDTO parsearItemJson(JsonNode node) {
+        JsonNode attrs = node.has("$") ? node.get("$") : node;
+
+        Long idProducto = parsearLongSeguro(obtenerTextoJson(attrs, "idProducto", "ID_PRODUCTO", "idproducto"));
+        Integer idServicio = parsearEnteroSeguro(obtenerTextoJson(attrs, "idServicio", "ID_SERVICIO", "idservicio"));
+        Integer idCatTipoServicio = parsearEnteroSeguro(obtenerTextoJson(attrs, "idCatTipoServicio", "ID_CAT_TIPO_SERVICIO", "idcattiposervicio"));
+        Integer tipoFront = parsearEnteroSeguro(obtenerTextoJson(attrs, "tipoFront", "TIPO_FRONT", "tipofront"));
+        String producto = obtenerTextoJson(attrs, "producto", "PRODUCTO");
+        String servicio = obtenerTextoJson(attrs, "servicio", "SERVICIO");
+        BigDecimal precio = parsearBigDecimalSeguro(obtenerTextoJson(attrs, "precio", "PRECIO"));
+        String tipoReferencia = obtenerTextoJson(attrs, "tipoReferencia", "TIPO_REFERENCIA", "tiporeferencia");
+        Boolean hasDigitoVerificador = parsearBooleanoSeguro(obtenerTextoJson(attrs, "hasDigitoVerificador", "HAS_DIGITO_VERIFICADOR", "hasdigitoverificador"));
+        Boolean showAyuda = parsearBooleanoSeguro(obtenerTextoJson(attrs, "showAyuda", "SHOW_AYUDA", "showayuda"));
+
+        String legend = null;
+        if (node.has("legend")) legend = node.get("legend").asText();
+        else if (node.has("LEGEND")) legend = node.get("LEGEND").asText();
+
+        return ProductoItemDTO.builder()
+                .idProducto(idProducto)
+                .idServicio(idServicio)
+                .idCatTipoServicio(idCatTipoServicio)
+                .tipoFront(tipoFront)
+                .producto(producto)
+                .servicio(servicio)
+                .precio(precio)
+                .tipoReferencia(tipoReferencia)
+                .hasDigitoVerificador(hasDigitoVerificador)
+                .showAyuda(showAyuda)
+                .legend(legend)
+                .build();
+    }
+
+    private String obtenerTextoJson(JsonNode node, String... keys) {
+        if (node == null || !node.isObject()) return null;
+        for (String key : keys) {
+            if (node.has(key)) {
+                return node.get(key).asText();
+            }
+        }
+        java.util.Iterator<String> fieldNames = node.fieldNames();
+        while (fieldNames.hasNext()) {
+            String fieldName = fieldNames.next();
+            for (String key : keys) {
+                if (fieldName.equalsIgnoreCase(key) || fieldName.replace("_", "").equalsIgnoreCase(key.replace("_", ""))) {
+                    return node.get(fieldName).asText();
+                }
+            }
+        }
+        return null;
+    }
+
+    private String sanitizarXml(String xml) {
+        if (xml == null) return "";
+        return xml.replaceAll("&(?!(amp|lt|gt|quot|apos|#\\d+|#x[0-9a-fA-F]+);)", "&amp;");
     }
 
     private String obtenerTextoElemento(Document doc, String tagName) {
