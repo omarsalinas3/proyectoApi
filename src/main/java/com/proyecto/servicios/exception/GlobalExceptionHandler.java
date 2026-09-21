@@ -1,5 +1,6 @@
 package com.proyecto.servicios.exception;
 
+import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import feign.FeignException;
 import feign.RetryableException;
 import lombok.extern.slf4j.Slf4j;
@@ -19,13 +20,13 @@ import java.util.stream.Collectors;
  * <p><strong>Responsabilidades:</strong>
  * <ul>
  *   <li>Interceptar excepciones de integración, autenticación, timeouts y validaciones.</li>
- *   <li>Transformar los errores en respuestas estandarizadas {@link ErrorResponse}.</li>
+ *   <li>Transformar los errores en respuestas estandarizadas {@link ErrorResponse} con {@link CodigoRespuestaEnum}.</li>
  *   <li>Registrar eventos de error en los logs con SLF4J protegiendo credenciales y datos sensibles.</li>
  * </ul>
  * </p>
  *
  * @author Equipo de Desarrollo
- * @version 1.0
+ * @version 2.0
  */
 @Slf4j
 @RestControllerAdvice
@@ -41,8 +42,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleExternalServiceAuthException(ExternalServiceAuthException ex) {
         log.error("Fallo de autenticación con el servicio externo: {}", ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.UNAUTHORIZED.value())
-                .mensaje("Fallo de autenticación en servicio externo")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_AUTENTICACION)
+                .codigo(CodigoRespuestaEnum.ERROR_AUTENTICACION.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_AUTENTICACION.getDescripcion())
                 .detalle(ex.getMessage())
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -59,8 +61,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTimeoutException(Exception ex) {
         log.error("Timeout de comunicación con servicio externo: {}", ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.GATEWAY_TIMEOUT.value())
-                .mensaje("Tiempo de espera agotado al comunicar con el servicio externo")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_TIMEOUT)
+                .codigo(CodigoRespuestaEnum.ERROR_TIMEOUT.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_TIMEOUT.getDescripcion())
                 .detalle("El servicio externo no respondió dentro del tiempo límite configurado")
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -77,8 +80,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleExternalServiceException(ExternalServiceException ex) {
         log.error("Error devuelto por el servicio externo (status {}): {}", ex.getStatusCode(), ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.BAD_GATEWAY.value())
-                .mensaje("Error en el servicio externo")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO)
+                .codigo(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getDescripcion())
                 .detalle(ex.getMessage())
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -95,8 +99,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleFeignException(FeignException ex) {
         log.error("Error de cliente Feign [status {}]: {}", ex.status(), ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.BAD_GATEWAY.value())
-                .mensaje("Fallo de comunicación con la API externa")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO)
+                .codigo(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getDescripcion())
                 .detalle("Respuesta no satisfactoria del servicio remoto")
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -117,6 +122,7 @@ public class GlobalExceptionHandler {
 
         log.warn("Error de validación en los datos de entrada: {}", detalles);
         ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_INTERNO)
                 .codigo(HttpStatus.BAD_REQUEST.value())
                 .mensaje("Parámetros de entrada inválidos")
                 .detalle(detalles)
@@ -135,8 +141,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Error interno no controlado en el servidor: ", ex);
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .mensaje("Ocurrió un error interno al procesar la solicitud")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_INTERNO)
+                .codigo(CodigoRespuestaEnum.ERROR_INTERNO.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_INTERNO.getDescripcion())
                 .detalle("Por favor intente más tarde o consulte con soporte técnico")
                 .timestamp(LocalDateTime.now())
                 .build();
