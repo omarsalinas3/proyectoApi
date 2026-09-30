@@ -170,4 +170,32 @@ public class ProductoController {
                 : HttpStatus.OK;
         return new ResponseEntity<>(response, status);
     }
+
+    /**
+     * Endpoint REST para consultar los productos para el frontend ordenados de manera ascendente.
+     *
+     * @return {@link ResponseEntity} con {@link ProductoListResponse} ordenado ascendentemente.
+     */
+    @Operation(
+            summary = "Consultar catálogo ordenado ascendentemente para Frontend",
+            description = "Devuelve el listado completo de productos ordenados ascendentemente por nombre de producto para consumo directo de interfaz de usuario."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Productos ordenados obtenidos exitosamente",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProductoListResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "502",
+                    description = "Bad Gateway - Error de comunicación con el servicio externo",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    @GetMapping(value = "/frontend", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ProductoListResponse> obtenerProductosParaFrontend() {
+        log.info("Recibida petición HTTP GET /api/v1/productos/frontend");
+        ProductoListResponse response = productoService.consultarProductosParaFrontend();
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
 }

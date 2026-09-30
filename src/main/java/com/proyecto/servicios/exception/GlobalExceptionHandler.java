@@ -132,6 +132,106 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Maneja errores cuando no se encuentra un cliente o cuenta bancaria.
+     *
+     * @param ex excepción capturada de tipo {@link ClienteNoEncontradoException} o {@link CuentaNoEncontradaException}.
+     * @return respuesta con código HTTP 404 Not Found.
+     */
+    @ExceptionHandler({ClienteNoEncontradoException.class, CuentaNoEncontradaException.class})
+    public ResponseEntity<ErrorResponse> handleNotFoundException(RuntimeException ex) {
+        log.warn("Recurso no encontrado: {}", ex.getMessage());
+        CodigoRespuestaEnum codigoEnum = ex instanceof ClienteNoEncontradoException 
+                ? CodigoRespuestaEnum.ERROR_CLIENTE_NO_ENCONTRADO 
+                : CodigoRespuestaEnum.ERROR_CUENTA_NO_ENCONTRADA;
+
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(codigoEnum)
+                .codigo(codigoEnum.getCodigo())
+                .mensaje(codigoEnum.getDescripcion())
+                .detalle(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Maneja errores por duplicidad de registros únicos (CURP, RFC, Correo, Usuario).
+     *
+     * @param ex excepción capturada de duplicidad.
+     * @return respuesta con código HTTP 409 Conflict.
+     */
+    @ExceptionHandler({
+            CurpDuplicadaException.class,
+            RfcDuplicadoException.class,
+            CorreoDuplicadoException.class,
+            UsuarioDuplicadoException.class
+    })
+    public ResponseEntity<ErrorResponse> handleDuplicityException(RuntimeException ex) {
+        log.warn("Conflicto de unicidad detectado: {}", ex.getMessage());
+        CodigoRespuestaEnum codigoEnum;
+        if (ex instanceof CurpDuplicadaException) {
+            codigoEnum = CodigoRespuestaEnum.ERROR_CURP_DUPLICADA;
+        } else if (ex instanceof RfcDuplicadoException) {
+            codigoEnum = CodigoRespuestaEnum.ERROR_RFC_DUPLICADO;
+        } else if (ex instanceof CorreoDuplicadoException) {
+            codigoEnum = CodigoRespuestaEnum.ERROR_CORREO_DUPLICADO;
+        } else {
+            codigoEnum = CodigoRespuestaEnum.ERROR_USUARIO_DUPLICADO;
+        }
+
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(codigoEnum)
+                .codigo(codigoEnum.getCodigo())
+                .mensaje(codigoEnum.getDescripcion())
+                .detalle(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
+    /**
+     * Maneja errores de credenciales inválidas y expiración de sesiones.
+     *
+     * @param ex excepción capturada de autenticación o sesión.
+     * @return respuesta con código HTTP 401 Unauthorized.
+     */
+    @ExceptionHandler({CredencialesInvalidasException.class, SesionExpiradaException.class})
+    public ResponseEntity<ErrorResponse> handleAuthSessionException(RuntimeException ex) {
+        log.warn("Fallo de acceso o sesión: {}", ex.getMessage());
+        CodigoRespuestaEnum codigoEnum = ex instanceof SesionExpiradaException 
+                ? CodigoRespuestaEnum.ERROR_SESION_EXPIRADA 
+                : CodigoRespuestaEnum.ERROR_CREDENCIALES_INVALIDAS;
+
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(codigoEnum)
+                .codigo(codigoEnum.getCodigo())
+                .mensaje(codigoEnum.getDescripcion())
+                .detalle(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    }
+
+    /**
+     * Maneja violaciones a reglas de negocio (ej. modificación de campos inmutables).
+     *
+     * @param ex excepción capturada de tipo {@link ValidacionNegocioException}.
+     * @return respuesta con código HTTP 422 Unprocessable Entity.
+     */
+    @ExceptionHandler(ValidacionNegocioException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessValidationException(ValidacionNegocioException ex) {
+        log.warn("Violación de regla de negocio: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_VALIDACION_NEGOCIO)
+                .codigo(CodigoRespuestaEnum.ERROR_VALIDACION_NEGOCIO.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_VALIDACION_NEGOCIO.getDescripcion())
+                .detalle(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
      * Manejador genérico para cualquier excepción no controlada en la aplicación.
      *
      * @param ex excepción genérica no controlada.

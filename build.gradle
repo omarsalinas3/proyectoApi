@@ -11,9 +11,13 @@ plugins {
 group 'com.proyecto.servicio.empresa'
 version '1.0'
 
-java{
-    sourceCompatibility=17
-    targetCompatibility=17
+// Sobreescribe la versión de Lombok gestionada por el BOM de Spring Boot
+ext['lombok.version'] = '1.18.34'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 repositories {
@@ -97,6 +101,30 @@ configurations.all {
 
 test {
     useJUnitPlatform()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.fork = true
+    options.forkOptions.jvmArgs += [
+        // jdk.unsupported es el módulo que expone sun.misc.Unsafe en JDK 9+ (requerido por Lombok Permit)
+        '--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED',
+        // java.base requerido para reflección usada por Lombok
+        '--add-opens=java.base/java.lang=ALL-UNNAMED',
+        '--add-opens=java.base/java.lang.reflect=ALL-UNNAMED',
+        '--add-opens=java.base/java.util=ALL-UNNAMED',
+        // jdk.compiler requerido para instrumentar el compilador javac con Lombok
+        '--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED',
+        '--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED',
+        '--add-opens=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED',
+        '--add-opens=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED',
+        '--add-opens=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED',
+        '--add-opens=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED',
+        '--add-opens=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED',
+        '--add-opens=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED',
+        '--add-opens=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED',
+        '--add-opens=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED'
+    ]
 }
 
 springBoot {

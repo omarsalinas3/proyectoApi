@@ -639,6 +639,22 @@ public class ProductoServiceImpl implements ProductoService {
         throw new ExternalServiceException("Servicio externo no disponible y no se encontraron datos en caché/BD: " + motivo, 502);
     }
 
+    @Override
+    public ProductoListResponse consultarProductosParaFrontend() {
+        log.info("Consultando productos ordenados ascendentemente para el frontend");
+        ProductoListResponse response = consultarListaProductos();
+        if (response != null && response.getProductos() != null) {
+            List<ProductoItemDTO> ordenados = new ArrayList<>(response.getProductos());
+            ordenados.sort(java.util.Comparator.comparing(
+                    p -> p.getProducto() != null ? p.getProducto() : "",
+                    String.CASE_INSENSITIVE_ORDER
+            ));
+            response.setProductos(ordenados);
+            response.setMensaje("Catálogo para frontend ordenado ascendentemente");
+        }
+        return response;
+    }
+
     private Long parsearLongSeguro(String valor) {
         try {
             return (valor != null && !valor.isBlank()) ? Long.valueOf(valor.trim()) : null;

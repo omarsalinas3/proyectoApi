@@ -62,6 +62,33 @@ public enum CodigoRespuestaEnum {
     /** El servicio externo no respondió en el tiempo límite configurado. */
     ERROR_TIMEOUT(12, "Tiempo de espera agotado al conectar con el servicio externo"),
 
+    /** Cliente no encontrado en la base de datos. */
+    ERROR_CLIENTE_NO_ENCONTRADO(20, "Cliente no encontrado"),
+
+    /** Cuenta no encontrada en la base de datos. */
+    ERROR_CUENTA_NO_ENCONTRADA(21, "Cuenta no encontrada"),
+
+    /** CURP ya registrada en el sistema. */
+    ERROR_CURP_DUPLICADA(22, "La CURP ya se encuentra registrada"),
+
+    /** RFC ya registrado en el sistema. */
+    ERROR_RFC_DUPLICADO(23, "El RFC ya se encuentra registrado"),
+
+    /** Correo electrónico ya registrado en el sistema. */
+    ERROR_CORREO_DUPLICADO(24, "El correo electrónico ya se encuentra registrado"),
+
+    /** Nombre de usuario de login ya registrado. */
+    ERROR_USUARIO_DUPLICADO(25, "El nombre de usuario ya se encuentra registrado"),
+
+    /** Credenciales de acceso incorrectas o inválidas. */
+    ERROR_CREDENCIALES_INVALIDAS(30, "Credenciales de acceso inválidas"),
+
+    /** Sesión inactiva o expirada por tiempo dinámico. */
+    ERROR_SESION_EXPIRADA(31, "La sesión ha expirado por inactividad"),
+
+    /** Violación de regla de negocio o datos inmutables. */
+    ERROR_VALIDACION_NEGOCIO(40, "Error en validación de reglas de negocio"),
+
     /** Error interno del servidor (condición inesperada no controlada). */
     ERROR_INTERNO(99, "Error interno del servidor");
 

@@ -49,5 +49,18 @@ public interface ProductoService {
      * @param request filtros opcionales de búsqueda (tipoFront, servicio, producto).
      * @return {@link ProductoListResponse} con el catálogo filtrado y el origen de datos.
      */
+    /**
+     * Consulta el catálogo de productos <strong>exclusivamente desde caché</strong>.
+     *
+     * @param request filtros opcionales de búsqueda (tipoFront, servicio, producto).
+     * @return {@link ProductoListResponse} con el catálogo filtrado y el origen de datos.
+     */
     ProductoListResponse consultarDesdeCacheOBaseDeDatos(ProductoConsultaRequest request);
+
+    /**
+     * Consulta todos los productos para el frontend ordenados de manera ascendente.
+     *
+     * @return {@link ProductoListResponse} con los productos ordenados ascendentemente por nombre.
+     */
+    ProductoListResponse consultarProductosParaFrontend();
 }
