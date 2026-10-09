@@ -42,4 +42,10 @@ public class LayawayClienteRequest implements Serializable {
 
     @Schema(description = "Domicilio del cliente")
     private DomicilioDTO domicilio;
+
+    @Schema(description = "Información financiera del cliente")
+    private com.proyecto.servicios.model.cliente.dto.InformacionFinancieraDTO informacionFinanciera;
+
+    @Schema(description = "Datos de autenticación inicial (contraseña y Face ID)")
+    private com.proyecto.servicios.model.cliente.dto.AutenticacionDTO autenticacion;
 }

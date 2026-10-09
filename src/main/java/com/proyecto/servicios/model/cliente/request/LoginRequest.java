@@ -29,13 +29,16 @@ public class LoginRequest implements Serializable {
     @Schema(description = "Bandera de inicio de sesión: 1 = Contraseña, 2 = Biométrico Face ID", example = "0")
     private Integer bandera;
 
-    @Schema(description = "Nombre de usuario", example = "string")
+    @Schema(description = "Nombre de usuario o correo", example = "omar.salinas@test.com")
+    @com.fasterxml.jackson.annotation.JsonAlias({"usuario", "correo", "user", "email"})
     @NotBlank(message = "El nombre de usuario es obligatorio")
     private String username;
 
-    @Schema(description = "Contraseña del usuario (requerido si Bandera = 1)", example = "string")
+    @Schema(description = "Contraseña del usuario (requerido si Bandera = 1)", example = "Password123*")
+    @com.fasterxml.jackson.annotation.JsonAlias({"contrasena", "clave"})
     private String password;
 
-    @Schema(description = "Identificador o dato biométrico Face ID numérico (requerido si Bandera = 2)", example = "0")
+    @Schema(description = "Identificador o dato biométrico Face ID numérico (requerido si Bandera = 2)", example = "987654321098")
+    @com.fasterxml.jackson.annotation.JsonAlias({"faceId", "biometrico", "face_id"})
     private Long faceIdBiometrico;
 }

@@ -11,7 +11,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.time.OffsetDateTime;
+import java.time.LocalDate;
 
 /**
  * Response DTO para la autenticación y estado de sesión del usuario.
@@ -56,9 +56,9 @@ public class LoginResponse implements Serializable {
     @Schema(description = "Segundos restantes de inactividad antes de que la sesión expire", example = "298")
     private Long segundosRestantesInactividad;
 
-    @Schema(description = "Estampa de tiempo de la última actividad registrada")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
-    private OffsetDateTime ultimaActividad;
+    @Schema(description = "Fecha de la última actividad registrada (YYYY-MM-DD)", example = "2026-10-02")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDate ultimaActividad;
 
     @Schema(description = "Token de sesión generado", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
     private String token;

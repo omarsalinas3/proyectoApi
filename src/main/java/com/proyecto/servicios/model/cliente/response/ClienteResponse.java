@@ -16,7 +16,6 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 
 /**
  * Response DTO estandarizado con los datos de un Cliente Persona Física y sus productos asociados.
@@ -64,7 +63,7 @@ public class ClienteResponse implements Serializable {
     @Schema(description = "Nombre completo formateado", example = "Carlos Eduardo Hernández López")
     private String nombreCompleto;
 
-    @Schema(description = "Fecha de nacimiento", example = "1995-08-15")
+    @Schema(description = "Fecha de nacimiento (YYYY-MM-DD)", example = "1995-08-15")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate fechaNacimiento;
 
@@ -104,9 +103,9 @@ public class ClienteResponse implements Serializable {
     @Schema(description = "Estatus activo del cliente (Baja lógica)", example = "true")
     private Boolean activo;
 
-    @Schema(description = "Fecha y hora de registro en el sistema")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
-    private OffsetDateTime fechaRegistro;
+    @Schema(description = "Fecha de registro en el sistema (YYYY-MM-DD)", example = "2026-10-02")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDate fechaRegistro;
 
     @Schema(description = "Domicilio particular del cliente")
     private DomicilioDTO domicilio;

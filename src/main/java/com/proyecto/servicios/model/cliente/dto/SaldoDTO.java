@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.LocalDate;
 
 /**
  * Data Transfer Object para el balance detallado de saldos.
@@ -31,19 +31,19 @@ public class SaldoDTO implements Serializable {
     @Schema(description = "Número de cuenta asociada", example = "1234567890123456")
     private String numeroCuenta;
 
-    @Schema(description = "Saldo total actual en la cuenta", example = "1500.50")
+    @Schema(description = "Saldo total actual en la cuenta", example = "0.00")
     private BigDecimal saldoActual;
 
     @Schema(description = "Saldo retenido por transacciones pendientes", example = "0.00")
     private BigDecimal saldoRetenido;
 
-    @Schema(description = "Saldo disponible para retiro o transferencias", example = "1500.50")
+    @Schema(description = "Saldo disponible para retiro o transferencias", example = "0.00")
     private BigDecimal saldoDisponible;
 
     @Schema(description = "Código de moneda", example = "MXN")
     private String moneda;
 
-    @Schema(description = "Fecha de última actualización del saldo")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
-    private OffsetDateTime fechaActualizacion;
+    @Schema(description = "Fecha de última actualización del saldo (YYYY-MM-DD)", example = "2026-10-02")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDate fechaActualizacion;
 }

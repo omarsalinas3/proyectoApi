@@ -13,7 +13,8 @@ import com.proyecto.servicios.model.cliente.response.ClienteResponse;
 import com.proyecto.servicios.model.cliente.response.CuentaResponse;
 import com.proyecto.servicios.model.cliente.response.SaldoResponse;
 import org.mapstruct.*;
-
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
@@ -144,5 +145,12 @@ public interface ClienteMapper {
             sb.append(" ").append(entity.getApellidoMaterno().trim());
         }
         return sb.toString();
+    }
+
+    /**
+     * Mapea un OffsetDateTime a LocalDate para devolver únicamente la fecha sin timestamp.
+     */
+    default LocalDate map(OffsetDateTime value) {
+        return value != null ? value.toLocalDate() : null;
     }
 }

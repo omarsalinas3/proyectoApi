@@ -48,6 +48,13 @@ public class JacksonConfig {
         // Ignorar propiedades desconocidas en la deserialización para mayor resiliencia ante cambios de contrato
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
+        // Desactivar coerción de texto a números: si ponen comillas a un número ("1"), se rechaza estrictamente
+        mapper.coercionConfigFor(com.fasterxml.jackson.databind.type.LogicalType.Integer)
+                .setCoercion(com.fasterxml.jackson.databind.cfg.CoercionInputShape.String, com.fasterxml.jackson.databind.cfg.CoercionAction.Fail);
+
+        mapper.coercionConfigFor(com.fasterxml.jackson.databind.type.LogicalType.Float)
+                .setCoercion(com.fasterxml.jackson.databind.cfg.CoercionInputShape.String, com.fasterxml.jackson.databind.cfg.CoercionAction.Fail);
+
         return mapper;
     }
 }

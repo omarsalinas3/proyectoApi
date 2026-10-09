@@ -67,7 +67,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         LoginEntity loginEntity = optLogin
-                .orElseThrow(() -> new CredencialesInvalidasException("Usuario o credenciales incorrectas"));
+                .orElseThrow(() -> new CredencialesInvalidasException("El usuario o correo electrónico ingresado no se encuentra registrado"));
 
         int bandera = request.getBandera() != null ? request.getBandera() : 1;
 
@@ -78,7 +78,7 @@ public class AuthServiceImpl implements AuthService {
             }
             if (!cryptoService.verifyPassword(request.getPassword(), loginEntity.getPasswordHash())) {
                 log.warn("Contraseña incorrecta para el usuario: {}", rawUsername);
-                throw new CredencialesInvalidasException("Usuario o contraseña incorrectos");
+                throw new CredencialesInvalidasException("La contraseña ingresada es incorrecta");
             }
         } else if (bandera == 2) {
             // Bandera 2: Autenticación por Face ID biométrico
@@ -91,7 +91,7 @@ public class AuthServiceImpl implements AuthService {
                 BigDecimal reqBio = BigDecimal.valueOf(request.getFaceIdBiometrico());
                 if (registeredPrecision.compareTo(reqBio) != 0) {
                     log.warn("Fallo de coincidencia Face ID biométrico para el usuario: {}", rawUsername);
-                    throw new CredencialesInvalidasException("Datos biométricos Face ID no coinciden con los registrados");
+                    throw new CredencialesInvalidasException("El Face ID biométrico ingresado no coincide con el registrado");
                 }
             }
             log.info("Autenticación biométrica Face ID exitosa para usuario: {}", rawUsername);
@@ -117,7 +117,7 @@ public class AuthServiceImpl implements AuthService {
                 .sesionActiva(true)
                 .tiempoInactividadSegundos(timeout)
                 .segundosRestantesInactividad((long) timeout)
-                .ultimaActividad(ahora)
+                .ultimaActividad(ahora.toLocalDate())
                 .build();
     }
 
@@ -128,7 +128,7 @@ public class AuthServiceImpl implements AuthService {
         String usernameCifrado = cryptoService.encrypt(username.trim());
 
         LoginEntity loginEntity = loginRepository.findByUsernameCifrado(usernameCifrado)
-                .orElseThrow(() -> new CredencialesInvalidasException("Usuario no registrado en el sistema"));
+                .orElseThrow(() -> new CredencialesInvalidasException("El usuario o correo electrónico ingresado no se encuentra registrado"));
 
         if (Boolean.FALSE.equals(loginEntity.getSesionActiva())) {
             log.warn("Intento de acceso con sesión inactiva para el usuario: {}", username);
@@ -170,7 +170,7 @@ public class AuthServiceImpl implements AuthService {
                 .sesionActiva(true)
                 .tiempoInactividadSegundos(limiteSegundos)
                 .segundosRestantesInactividad(segundosRestantes)
-                .ultimaActividad(ahora)
+                .ultimaActividad(ahora.toLocalDate())
                 .build();
     }
 
@@ -181,7 +181,7 @@ public class AuthServiceImpl implements AuthService {
         String usernameCifrado = cryptoService.encrypt(username.trim());
 
         LoginEntity loginEntity = loginRepository.findByUsernameCifrado(usernameCifrado)
-                .orElseThrow(() -> new CredencialesInvalidasException("Usuario no registrado en el sistema"));
+                .orElseThrow(() -> new CredencialesInvalidasException("El usuario o correo electrónico ingresado no se encuentra registrado"));
 
         loginEntity.setSesionActiva(false);
         loginRepository.save(loginEntity);
@@ -196,7 +196,7 @@ public class AuthServiceImpl implements AuthService {
                 .sesionActiva(false)
                 .tiempoInactividadSegundos(loginEntity.getTiempoInactividadSegundos())
                 .segundosRestantesInactividad(0L)
-                .ultimaActividad(loginEntity.getUltimaActividad())
+                .ultimaActividad(loginEntity.getUltimaActividad() != null ? loginEntity.getUltimaActividad().toLocalDate() : null)
                 .build();
     }
 }

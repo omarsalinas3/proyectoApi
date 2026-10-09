@@ -83,11 +83,24 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
         String rawCorreo = (dc != null && dc.getCorreo() != null) ? safeDecrypt(dc.getCorreo()) : "";
         String correo = rawCorreo != null ? rawCorreo.trim().toLowerCase() : "";
 
-        if (curp.isBlank()) {
-            throw new ValidacionNegocioException("La CURP es obligatoria para el registro de cliente");
+        if (curp.isBlank() || curp.length() != 18) {
+            throw new ValidacionNegocioException("La CURP es obligatoria y debe contener exactamente 18 caracteres (ej. HELC950815HDFRPR03)");
         }
-        if (rfc.isBlank()) {
-            throw new ValidacionNegocioException("El RFC es obligatorio para el registro de cliente");
+        if (rfc.isBlank() || (rfc.length() != 12 && rfc.length() != 13)) {
+            throw new ValidacionNegocioException("El RFC es obligatorio y debe contener 12 o 13 caracteres (ej. HELC950815ABC)");
+        }
+
+        if (!correo.isBlank() && !correo.matches("^[\\w._%+-]+@[\\w.-]+\\.[a-zA-Z]{2,6}$")) {
+            throw new ValidacionNegocioException("El correo electrónico '" + correo + "' no tiene un formato válido (ej. usuario@dominio.com)");
+        }
+
+        // Validación de fecha de nacimiento y mayoría de edad (18+ años)
+        LocalDate fechaNac = dp.getFechaNacimiento() != null ? dp.getFechaNacimiento() : LocalDate.of(1990, 1, 1);
+        if (fechaNac.isAfter(LocalDate.now())) {
+            throw new ValidacionNegocioException("La fecha de nacimiento no puede ser una fecha futura");
+        }
+        if (java.time.Period.between(fechaNac, LocalDate.now()).getYears() < 18) {
+            throw new ValidacionNegocioException("El cliente debe ser mayor de edad (18 años o más). Fecha ingresada: " + fechaNac);
         }
 
         if (usuarioRepository.existsByCurp(curp)) {
@@ -100,23 +113,61 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
             throw new CorreoDuplicadoException("Ya existe un cliente registrado con el correo: " + correo);
         }
 
+        String nombre = dp.getNombre() != null ? safeDecrypt(dp.getNombre()).trim() : "";
+        String segundoNombre = dp.getSegundoNombre() != null ? safeDecrypt(dp.getSegundoNombre()).trim() : null;
+        String apellidoPaterno = dp.getApellidoPaterno() != null ? safeDecrypt(dp.getApellidoPaterno()).trim() : "";
+        String apellidoMaterno = dp.getApellidoMaterno() != null ? safeDecrypt(dp.getApellidoMaterno()).trim() : "";
+
+        // Validación de solo texto en nombres y apellidos
+        if (nombre.isBlank() || !nombre.matches("^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\\s]+$")) {
+            throw new ValidacionNegocioException("El nombre es obligatorio y solo debe contener letras y espacios");
+        }
+        if (segundoNombre != null && !segundoNombre.isBlank() && !segundoNombre.matches("^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\\s]+$")) {
+            throw new ValidacionNegocioException("El segundo nombre solo debe contener letras y espacios");
+        }
+        if (apellidoPaterno.isBlank() || !apellidoPaterno.matches("^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\\s]+$")) {
+            throw new ValidacionNegocioException("El apellido paterno es obligatorio y solo debe contener letras y espacios");
+        }
+        if (apellidoMaterno.isBlank() || !apellidoMaterno.matches("^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\\s]+$")) {
+            throw new ValidacionNegocioException("El apellido materno es obligatorio y solo debe contener letras y espacios");
+        }
+
+        // Validación de teléfono (solo números, 10 dígitos)
+        String telMovil = (dc != null && dc.getTelefonoMovil() != null) ? safeDecrypt(dc.getTelefonoMovil()).trim() : "";
+        if (!telMovil.isBlank() && !telMovil.matches("^\\d{10}$")) {
+            throw new ValidacionNegocioException("El teléfono móvil '" + telMovil + "' no es válido. Debe contener exactamente 10 dígitos numéricos");
+        }
+
+        // Validación de código postal (solo números, 5 dígitos)
+        String cp = (dom != null && dom.getCodigoPostal() != null) ? safeDecrypt(dom.getCodigoPostal()).trim() : "00000";
+        if (!cp.isBlank() && !cp.matches("^\\d{5}$")) {
+            throw new ValidacionNegocioException("El código postal '" + cp + "' no es válido. Debe contener exactamente 5 dígitos numéricos");
+        }
+
+        BigDecimal ceroDecimal = BigDecimal.ZERO.setScale(2, java.math.RoundingMode.HALF_UP);
+
+        String ocupacion = (request.getInformacionFinanciera() != null && request.getInformacionFinanciera().getOcupacion() != null)
+                ? request.getInformacionFinanciera().getOcupacion().trim() : "Cliente General";
+        BigDecimal ingreso = (request.getInformacionFinanciera() != null && request.getInformacionFinanciera().getIngresoMensual() != null)
+                ? request.getInformacionFinanciera().getIngresoMensual().setScale(2, java.math.RoundingMode.HALF_UP) : ceroDecimal;
+
         UsuarioEntity usuario = UsuarioEntity.builder()
-                .nombre(dp.getNombre() != null ? safeDecrypt(dp.getNombre()).trim() : "")
-                .segundoNombre(dp.getSegundoNombre() != null ? safeDecrypt(dp.getSegundoNombre()).trim() : null)
-                .apellidoPaterno(dp.getApellidoPaterno() != null ? safeDecrypt(dp.getApellidoPaterno()).trim() : "")
-                .apellidoMaterno(dp.getApellidoMaterno() != null ? safeDecrypt(dp.getApellidoMaterno()).trim() : "")
+                .nombre(nombre)
+                .segundoNombre(segundoNombre)
+                .apellidoPaterno(apellidoPaterno)
+                .apellidoMaterno(apellidoMaterno)
                 .fechaNacimiento(dp.getFechaNacimiento() != null ? dp.getFechaNacimiento() : LocalDate.of(1990, 1, 1))
                 .curp(curp)
                 .rfc(rfc)
-                .sexo(dp.getSexo() != null ? safeDecrypt(dp.getSexo()).trim() : "M")
+                .sexo(com.proyecto.servicios.enums.SexoEnum.normalizar(dp.getSexo() != null ? safeDecrypt(dp.getSexo()) : null))
                 .nacionalidad(dp.getNacionalidad() != null ? safeDecrypt(dp.getNacionalidad()).trim() : "Mexicana")
-                .estadoCivil(dp.getEstadoCivil() != null ? safeDecrypt(dp.getEstadoCivil()).trim() : "SOLTERO")
+                .estadoCivil(com.proyecto.servicios.enums.EstadoCivilEnum.normalizar(dp.getEstadoCivil() != null ? safeDecrypt(dp.getEstadoCivil()) : null))
                 .correo(!correo.isBlank() ? correo : (curp.toLowerCase() + "@layaway.com"))
-                .telefonoMovil(dc != null && dc.getTelefonoMovil() != null ? safeDecrypt(dc.getTelefonoMovil()).trim() : "0000000000")
+                .telefonoMovil(!telMovil.isBlank() ? telMovil : "0000000000")
                 .telefonoAlternativo(dc != null && dc.getTelefonoAlt() != null ? safeDecrypt(dc.getTelefonoAlt()).trim() : null)
-                .ocupacion("Cliente General")
+                .ocupacion(ocupacion)
                 .empresa("Particular")
-                .ingresoMensual(BigDecimal.ZERO)
+                .ingresoMensual(ingreso)
                 .activo(true)
                 .build();
 
@@ -128,7 +179,7 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
                     .colonia(dom.getColonia() != null ? dom.getColonia() : "Centro")
                     .municipio(dom.getMunicipio() != null ? dom.getMunicipio() : "Principal")
                     .estado(dom.getEstado() != null ? dom.getEstado() : "CDMX")
-                    .codigoPostal(dom.getCodigoPostal() != null ? dom.getCodigoPostal() : "00000")
+                    .codigoPostal(!cp.isBlank() ? cp : "00000")
                     .pais(dom.getPais() != null ? dom.getPais() : "México")
                     .usuario(usuario)
                     .build();
@@ -140,17 +191,17 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
         CuentaEntity cuenta = CuentaEntity.builder()
                 .usuario(usuario)
                 .numeroCuenta(numeroCuenta)
-                .saldoInicial(BigDecimal.ZERO)
-                .saldoDisponible(BigDecimal.ZERO)
+                .saldoInicial(ceroDecimal)
+                .saldoDisponible(ceroDecimal)
                 .estatus("ACTIVA")
                 .build();
 
         SaldoEntity saldo = SaldoEntity.builder()
                 .usuario(usuario)
                 .cuenta(cuenta)
-                .saldoActual(BigDecimal.ZERO)
-                .saldoRetenido(BigDecimal.ZERO)
-                .saldoDisponible(BigDecimal.ZERO)
+                .saldoActual(ceroDecimal)
+                .saldoRetenido(ceroDecimal)
+                .saldoDisponible(ceroDecimal)
                 .moneda("MXN")
                 .build();
 
@@ -160,9 +211,22 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
         // Generar Credenciales y Biometría
         String rawUsername = !correo.isBlank() ? correo : curp;
         String userCifrado = cryptoService.encrypt(rawUsername);
-        String passHash = cryptoService.hashPassword(curp);
-        BigDecimal bioPrecision = dp.getDatosBiometricos() != null ? BigDecimal.valueOf(dp.getDatosBiometricos()) : null;
-        String bioCifrado = dp.getDatosBiometricos() != null ? cryptoService.encrypt(String.valueOf(dp.getDatosBiometricos())) : null;
+
+        String plainPassword = curp;
+        if (request.getAutenticacion() != null && request.getAutenticacion().getPassword() != null && !request.getAutenticacion().getPassword().isBlank()) {
+            plainPassword = safeDecrypt(request.getAutenticacion().getPassword()).trim();
+        }
+        String passHash = cryptoService.hashPassword(plainPassword);
+
+        Long rawBio = null;
+        if (request.getAutenticacion() != null && request.getAutenticacion().getFaceId() != null) {
+            rawBio = request.getAutenticacion().getFaceId();
+        } else if (dp.getDatosBiometricos() != null) {
+            rawBio = dp.getDatosBiometricos();
+        }
+
+        BigDecimal bioPrecision = rawBio != null ? BigDecimal.valueOf(rawBio) : null;
+        String bioCifrado = rawBio != null ? cryptoService.encrypt(String.valueOf(rawBio)) : null;
 
         LoginEntity login = LoginEntity.builder()
                 .usuario(usuario)
@@ -204,9 +268,9 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
             if (dp.getApellidoPaterno() != null && !dp.getApellidoPaterno().isBlank()) usuario.setApellidoPaterno(dp.getApellidoPaterno().trim());
             if (dp.getApellidoMaterno() != null && !dp.getApellidoMaterno().isBlank()) usuario.setApellidoMaterno(dp.getApellidoMaterno().trim());
             if (dp.getFechaNacimiento() != null) usuario.setFechaNacimiento(dp.getFechaNacimiento());
-            if (dp.getSexo() != null) usuario.setSexo(dp.getSexo().trim());
-            if (dp.getNacionalidad() != null) usuario.setNacionalidad(dp.getNacionalidad().trim());
-            if (dp.getEstadoCivil() != null) usuario.setEstadoCivil(dp.getEstadoCivil().trim());
+            if (dp.getSexo() != null) usuario.setSexo(com.proyecto.servicios.enums.SexoEnum.normalizar(safeDecrypt(dp.getSexo())));
+            if (dp.getNacionalidad() != null) usuario.setNacionalidad(safeDecrypt(dp.getNacionalidad()).trim());
+            if (dp.getEstadoCivil() != null) usuario.setEstadoCivil(com.proyecto.servicios.enums.EstadoCivilEnum.normalizar(safeDecrypt(dp.getEstadoCivil())));
             if (dp.getDatosBiometricos() != null && usuario.getLogin() != null) {
                 usuario.getLogin().setDatosBiometricosPrecision(BigDecimal.valueOf(dp.getDatosBiometricos()));
                 usuario.getLogin().setDatosBiometricosCifrados(cryptoService.encrypt(String.valueOf(dp.getDatosBiometricos())));

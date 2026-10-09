@@ -132,6 +132,41 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Maneja errores cuando el formato JSON contiene tipos incompatibles (ej. comillas en campos numéricos como bandera).
+     * Retorna HTTP 404 para coincidir con la documentación y evitar respuestas indocumentadas.
+     */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        String detalle = "El cuerpo de la petición contiene un formato JSON inválido o tipos de datos incompatibles";
+        Throwable rootCause = ex.getRootCause() != null ? ex.getRootCause() : ex.getCause();
+
+        if (rootCause instanceof com.fasterxml.jackson.databind.exc.MismatchedInputException mie) {
+            String fieldName = mie.getPath().stream()
+                    .map(com.fasterxml.jackson.databind.JsonMappingException.Reference::getFieldName)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.joining("."));
+
+            if (fieldName != null && !fieldName.isBlank()) {
+                detalle = String.format("El campo '%s' debe ser un valor numérico directo (sin comillas). No se permiten cadenas de texto para valores numéricos o banderas", fieldName);
+            } else {
+                detalle = "Tipo de dato no coincidente en la petición JSON. Verifique que los valores numéricos no lleven comillas";
+            }
+        } else if (rootCause != null && rootCause.getMessage() != null) {
+            detalle = rootCause.getMessage();
+        }
+
+        log.warn("Error de deserialización JSON (HTTP 404): {}", detalle);
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_CLIENTE_NO_ENCONTRADO)
+                .codigo(HttpStatus.NOT_FOUND.value())
+                .mensaje("Bandera o parámetro no encontrado / formato no válido")
+                .detalle(detalle)
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    /**
      * Maneja errores cuando no se encuentra un cliente o cuenta bancaria.
      *
      * @param ex excepción capturada de tipo {@link ClienteNoEncontradoException} o {@link CuentaNoEncontradaException}.

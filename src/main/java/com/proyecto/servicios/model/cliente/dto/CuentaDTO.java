@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.LocalDate;
 
 /**
  * Data Transfer Object para la Cuenta Bancaria.
@@ -40,7 +40,7 @@ public class CuentaDTO implements Serializable {
     @Schema(description = "Estatus actual de la cuenta (ACTIVA, BLOQUEADA, CANCELADA)", example = "ACTIVA")
     private String estatus;
 
-    @Schema(description = "Fecha y hora de apertura de la cuenta")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
-    private OffsetDateTime fechaApertura;
+    @Schema(description = "Fecha de apertura de la cuenta (YYYY-MM-DD)", example = "2026-10-02")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDate fechaApertura;
 }
