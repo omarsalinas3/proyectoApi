@@ -1,5 +1,6 @@
 package com.proyecto.servicios.exception;
 
+import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import feign.FeignException;
 import feign.RetryableException;
 import lombok.extern.slf4j.Slf4j;
@@ -19,13 +20,13 @@ import java.util.stream.Collectors;
  * <p><strong>Responsabilidades:</strong>
  * <ul>
  *   <li>Interceptar excepciones de integración, autenticación, timeouts y validaciones.</li>
- *   <li>Transformar los errores en respuestas estandarizadas {@link ErrorResponse}.</li>
+ *   <li>Transformar los errores en respuestas estandarizadas {@link ErrorResponse} con {@link CodigoRespuestaEnum}.</li>
  *   <li>Registrar eventos de error en los logs con SLF4J protegiendo credenciales y datos sensibles.</li>
  * </ul>
  * </p>
  *
  * @author Equipo de Desarrollo
- * @version 1.0
+ * @version 2.0
  */
 @Slf4j
 @RestControllerAdvice
@@ -41,8 +42,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleExternalServiceAuthException(ExternalServiceAuthException ex) {
         log.error("Fallo de autenticación con el servicio externo: {}", ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.UNAUTHORIZED.value())
-                .mensaje("Fallo de autenticación en servicio externo")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_AUTENTICACION)
+                .codigo(CodigoRespuestaEnum.ERROR_AUTENTICACION.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_AUTENTICACION.getDescripcion())
                 .detalle(ex.getMessage())
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -59,8 +61,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTimeoutException(Exception ex) {
         log.error("Timeout de comunicación con servicio externo: {}", ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.GATEWAY_TIMEOUT.value())
-                .mensaje("Tiempo de espera agotado al comunicar con el servicio externo")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_TIMEOUT)
+                .codigo(CodigoRespuestaEnum.ERROR_TIMEOUT.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_TIMEOUT.getDescripcion())
                 .detalle("El servicio externo no respondió dentro del tiempo límite configurado")
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -77,8 +80,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleExternalServiceException(ExternalServiceException ex) {
         log.error("Error devuelto por el servicio externo (status {}): {}", ex.getStatusCode(), ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.BAD_GATEWAY.value())
-                .mensaje("Error en el servicio externo")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO)
+                .codigo(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getDescripcion())
                 .detalle(ex.getMessage())
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -95,8 +99,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleFeignException(FeignException ex) {
         log.error("Error de cliente Feign [status {}]: {}", ex.status(), ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.BAD_GATEWAY.value())
-                .mensaje("Fallo de comunicación con la API externa")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO)
+                .codigo(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getDescripcion())
                 .detalle("Respuesta no satisfactoria del servicio remoto")
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -117,12 +122,148 @@ public class GlobalExceptionHandler {
 
         log.warn("Error de validación en los datos de entrada: {}", detalles);
         ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_INTERNO)
                 .codigo(HttpStatus.BAD_REQUEST.value())
                 .mensaje("Parámetros de entrada inválidos")
                 .detalle(detalles)
                 .timestamp(LocalDateTime.now())
                 .build();
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Maneja errores cuando el formato JSON contiene tipos incompatibles (ej. comillas en campos numéricos como bandera).
+     * Retorna HTTP 404 para coincidir con la documentación y evitar respuestas indocumentadas.
+     */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        String detalle = "El cuerpo de la petición contiene un formato JSON inválido o tipos de datos incompatibles";
+        Throwable rootCause = ex.getRootCause() != null ? ex.getRootCause() : ex.getCause();
+
+        if (rootCause instanceof com.fasterxml.jackson.databind.exc.MismatchedInputException mie) {
+            String fieldName = mie.getPath().stream()
+                    .map(com.fasterxml.jackson.databind.JsonMappingException.Reference::getFieldName)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.joining("."));
+
+            if (fieldName != null && !fieldName.isBlank()) {
+                detalle = String.format("El campo '%s' debe ser un valor numérico directo (sin comillas). No se permiten cadenas de texto para valores numéricos o banderas", fieldName);
+            } else {
+                detalle = "Tipo de dato no coincidente en la petición JSON. Verifique que los valores numéricos no lleven comillas";
+            }
+        } else if (rootCause != null && rootCause.getMessage() != null) {
+            detalle = rootCause.getMessage();
+        }
+
+        log.warn("Error de deserialización JSON (HTTP 404): {}", detalle);
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_CLIENTE_NO_ENCONTRADO)
+                .codigo(HttpStatus.NOT_FOUND.value())
+                .mensaje("Bandera o parámetro no encontrado / formato no válido")
+                .detalle(detalle)
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Maneja errores cuando no se encuentra un cliente o cuenta bancaria.
+     *
+     * @param ex excepción capturada de tipo {@link ClienteNoEncontradoException} o {@link CuentaNoEncontradaException}.
+     * @return respuesta con código HTTP 404 Not Found.
+     */
+    @ExceptionHandler({ClienteNoEncontradoException.class, CuentaNoEncontradaException.class})
+    public ResponseEntity<ErrorResponse> handleNotFoundException(RuntimeException ex) {
+        log.warn("Recurso no encontrado: {}", ex.getMessage());
+        CodigoRespuestaEnum codigoEnum = ex instanceof ClienteNoEncontradoException 
+                ? CodigoRespuestaEnum.ERROR_CLIENTE_NO_ENCONTRADO 
+                : CodigoRespuestaEnum.ERROR_CUENTA_NO_ENCONTRADA;
+
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(codigoEnum)
+                .codigo(codigoEnum.getCodigo())
+                .mensaje(codigoEnum.getDescripcion())
+                .detalle(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Maneja errores por duplicidad de registros únicos (CURP, RFC, Correo, Usuario).
+     *
+     * @param ex excepción capturada de duplicidad.
+     * @return respuesta con código HTTP 409 Conflict.
+     */
+    @ExceptionHandler({
+            CurpDuplicadaException.class,
+            RfcDuplicadoException.class,
+            CorreoDuplicadoException.class,
+            UsuarioDuplicadoException.class
+    })
+    public ResponseEntity<ErrorResponse> handleDuplicityException(RuntimeException ex) {
+        log.warn("Conflicto de unicidad detectado: {}", ex.getMessage());
+        CodigoRespuestaEnum codigoEnum;
+        if (ex instanceof CurpDuplicadaException) {
+            codigoEnum = CodigoRespuestaEnum.ERROR_CURP_DUPLICADA;
+        } else if (ex instanceof RfcDuplicadoException) {
+            codigoEnum = CodigoRespuestaEnum.ERROR_RFC_DUPLICADO;
+        } else if (ex instanceof CorreoDuplicadoException) {
+            codigoEnum = CodigoRespuestaEnum.ERROR_CORREO_DUPLICADO;
+        } else {
+            codigoEnum = CodigoRespuestaEnum.ERROR_USUARIO_DUPLICADO;
+        }
+
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(codigoEnum)
+                .codigo(codigoEnum.getCodigo())
+                .mensaje(codigoEnum.getDescripcion())
+                .detalle(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
+    /**
+     * Maneja errores de credenciales inválidas y expiración de sesiones.
+     *
+     * @param ex excepción capturada de autenticación o sesión.
+     * @return respuesta con código HTTP 401 Unauthorized.
+     */
+    @ExceptionHandler({CredencialesInvalidasException.class, SesionExpiradaException.class})
+    public ResponseEntity<ErrorResponse> handleAuthSessionException(RuntimeException ex) {
+        log.warn("Fallo de acceso o sesión: {}", ex.getMessage());
+        CodigoRespuestaEnum codigoEnum = ex instanceof SesionExpiradaException 
+                ? CodigoRespuestaEnum.ERROR_SESION_EXPIRADA 
+                : CodigoRespuestaEnum.ERROR_CREDENCIALES_INVALIDAS;
+
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(codigoEnum)
+                .codigo(codigoEnum.getCodigo())
+                .mensaje(codigoEnum.getDescripcion())
+                .detalle(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    }
+
+    /**
+     * Maneja violaciones a reglas de negocio (ej. modificación de campos inmutables).
+     *
+     * @param ex excepción capturada de tipo {@link ValidacionNegocioException}.
+     * @return respuesta con código HTTP 422 Unprocessable Entity.
+     */
+    @ExceptionHandler(ValidacionNegocioException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessValidationException(ValidacionNegocioException ex) {
+        log.warn("Violación de regla de negocio: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_VALIDACION_NEGOCIO)
+                .codigo(CodigoRespuestaEnum.ERROR_VALIDACION_NEGOCIO.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_VALIDACION_NEGOCIO.getDescripcion())
+                .detalle(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     /**
@@ -135,8 +276,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Error interno no controlado en el servidor: ", ex);
         ErrorResponse error = ErrorResponse.builder()
-                .codigo(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .mensaje("Ocurrió un error interno al procesar la solicitud")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_INTERNO)
+                .codigo(CodigoRespuestaEnum.ERROR_INTERNO.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_INTERNO.getDescripcion())
                 .detalle("Por favor intente más tarde o consulte con soporte técnico")
                 .timestamp(LocalDateTime.now())
                 .build();
