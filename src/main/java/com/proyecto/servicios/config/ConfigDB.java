@@ -44,16 +44,44 @@ import java.util.Map;
 )
 public class ConfigDB {
 
+    // [jdbc:]postgres[ql]://user:pass@host[:port]/db[?query]
+    private static final java.util.regex.Pattern EMBEDDED_CREDENTIALS_URL = java.util.regex.Pattern.compile(
+            "^(?:jdbc:)?postgres(?:ql)?://([^:/@]+):(.+)@([^:/@]+)(?::(\\d+))?(/[^?]*)(\\?.*)?$");
+
     @Autowired
     private Environment env;
 
     @Bean(name="sfDatasource")
     public DataSource sfDatasource(){
-        HikariConfig config=new HikariConfig();
-        try{
-            config.setJdbcUrl(env.getProperty("spring.datasource.url"));
-            config.setPassword(env.getProperty("spring.datasource.password"));
-            config.setUsername(env.getProperty("spring.datasource.username"));
+        HikariConfig config = new HikariConfig();
+        try {
+            String rawUrl = env.getProperty("spring.datasource.url");
+            String username = env.getProperty("spring.datasource.username");
+            String password = env.getProperty("spring.datasource.password");
+
+            if (rawUrl != null && !rawUrl.isBlank()) {
+                rawUrl = rawUrl.trim();
+                // Si la URL contiene credenciales embebidas estilo Render (postgresql://user:pass@host/db)
+                // el driver JDBC la rechaza: se extraen las credenciales y se reconstruye una URL limpia.
+                // Se parsea con regex (no java.net.URI) para tolerar caracteres especiales en el password
+                // y para no volcar credenciales en los logs.
+                java.util.regex.Matcher m = EMBEDDED_CREDENTIALS_URL.matcher(rawUrl);
+                if (m.matches()) {
+                    username = java.net.URLDecoder.decode(m.group(1), java.nio.charset.StandardCharsets.UTF_8);
+                    password = java.net.URLDecoder.decode(m.group(2), java.nio.charset.StandardCharsets.UTF_8);
+                    String host = m.group(3);
+                    String port = m.group(4) != null ? m.group(4) : "5432";
+                    String path = m.group(5);
+                    String query = m.group(6) != null ? m.group(6) : "";
+                    rawUrl = "jdbc:postgresql://" + host + ":" + port + path + query;
+                } else if (rawUrl.startsWith("postgresql://") || rawUrl.startsWith("postgres://")) {
+                    rawUrl = "jdbc:postgresql://" + rawUrl.substring(rawUrl.indexOf("://") + 3);
+                }
+            }
+
+            config.setJdbcUrl(rawUrl);
+            config.setUsername(username);
+            config.setPassword(password);
             String driverClass = env.getProperty("spring.datasource.driver-class-name");
             if (driverClass != null && !driverClass.isBlank()) {
                 config.setDriverClassName(driverClass);
