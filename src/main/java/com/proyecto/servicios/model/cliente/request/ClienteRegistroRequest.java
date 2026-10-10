@@ -84,15 +84,21 @@ public class ClienteRegistroRequest implements Serializable {
 
     @Schema(description = "Sexo (M = Masculino, F = Femenino)", example = "M")
     @NotBlank(message = "El sexo es obligatorio")
-    @Pattern(regexp = "^(M|F|MASCULINO|FEMENINO|OTRO)$", message = "El sexo debe ser M, F o Masculino/Femenino")
+    @Pattern(regexp = "(?i)^(M|F|H|MASCULINO|FEMENINO|HOMBRE|MUJER|OTRO)$",
+            message = "El sexo no es válido. Valores permitidos: M, F, MASCULINO, FEMENINO, OTRO")
     private String sexo;
 
     @Schema(description = "Nacionalidad", example = "Mexicana")
     @NotBlank(message = "La nacionalidad es obligatoria")
+    @Size(min = 4, max = 50, message = "La nacionalidad debe tener entre 4 y 50 caracteres")
+    @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+( [a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+)*$",
+            message = "La nacionalidad solo debe contener letras y espacios simples (sin números ni símbolos), por ejemplo: Mexicana")
     private String nacionalidad;
 
     @Schema(description = "Estado civil (SOLTERO, CASADO, UNION_LIBRE, etc.)", example = "SOLTERO")
     @NotBlank(message = "El estado civil es obligatorio")
+    @Pattern(regexp = "(?i)^(SOLTERO|SOLTERA|CASADO|CASADA|UNION[ _]?LIBRE|UNIÓN[ _]?LIBRE|CONCUBINATO|DIVORCIADO|DIVORCIADA|VIUDO|VIUDA)$",
+            message = "El estado civil no es válido. Valores permitidos: SOLTERO, CASADO, UNION_LIBRE, DIVORCIADO, VIUDO")
     private String estadoCivil;
 
     // ─────────────────────────────
@@ -102,6 +108,8 @@ public class ClienteRegistroRequest implements Serializable {
     @Schema(description = "Correo electrónico institucional o personal", example = "carlos.hernandez@example.com")
     @NotBlank(message = "El correo electrónico es obligatorio")
     @Email(message = "El formato del correo electrónico no es válido")
+    @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}$",
+            message = "El correo electrónico debe tener el formato usuario@dominio.com (con dominio y extensión válidos)")
     @Size(max = 100, message = "El correo electrónico no debe exceder 100 caracteres")
     private String correo;
 
@@ -120,10 +128,16 @@ public class ClienteRegistroRequest implements Serializable {
 
     @Schema(description = "Ocupación o profesión", example = "Ingeniero de Software")
     @NotBlank(message = "La ocupación es obligatoria")
+    @Size(min = 2, max = 100, message = "La ocupación debe tener entre 2 y 100 caracteres")
+    @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ .,-]*$",
+            message = "La ocupación solo debe contener letras, espacios, puntos, comas y guiones (sin números ni otros símbolos)")
     private String ocupacion;
 
     @Schema(description = "Empresa donde labora", example = "Tech Solutions S.A. de C.V.")
     @NotBlank(message = "La empresa es obligatoria")
+    @Size(min = 2, max = 100, message = "La empresa debe tener entre 2 y 100 caracteres")
+    @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9][a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9 .,&'-]*$",
+            message = "La empresa solo debe contener letras, números, espacios y los símbolos . , & ' -")
     private String empresa;
 
     @Schema(description = "Ingreso mensual comprobable (mayor a cero)", example = "35000.00")
@@ -132,6 +146,8 @@ public class ClienteRegistroRequest implements Serializable {
     private BigDecimal ingresoMensual;
 
     @Schema(description = "URL o identificador del documento de identidad INE digitalizado", example = "https://storage.banco.com/docs/ine_carlos.pdf")
+    @Size(max = 500, message = "La URL del documento INE no debe exceder 500 caracteres")
+    @Pattern(regexp = "^(https?://\\S+)?$", message = "El documento INE debe ser una URL válida que inicie con http:// o https://")
     private String ineDocumentoUrl;
 
     // ─────────────────────────────
@@ -150,11 +166,15 @@ public class ClienteRegistroRequest implements Serializable {
     @Schema(description = "Nombre de usuario para el inicio de sesión", example = "carlos.h95")
     @NotBlank(message = "El nombre de usuario para login es obligatorio")
     @Size(min = 4, max = 50, message = "El nombre de usuario debe tener entre 4 y 50 caracteres")
+    @Pattern(regexp = "^[A-Za-z0-9._-]+$",
+            message = "El nombre de usuario solo debe contener letras, números, punto, guion y guion bajo (sin espacios)")
     private String username;
 
     @Schema(description = "Contraseña en texto plano para su posterior cifrado seguro", example = "PasswordSeguro123!")
     @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, max = 100, message = "La contraseña debe tener al menos 8 caracteres")
+    @Size(min = 8, max = 100, message = "La contraseña debe tener entre 8 y 100 caracteres")
+    @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s])\\S+$",
+            message = "La contraseña debe incluir al menos una mayúscula, una minúscula, un número y un símbolo, sin espacios")
     private String password;
 
     @Schema(description = "Valor biométrico escalar o de resumen", example = "0.9876543210123456789")
