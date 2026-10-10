@@ -29,11 +29,17 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class ProductosFeignConfig {
 
-    @Value("${servicio.externo.productos.token}")
-    private String bearerToken;
+    @Value("${servicio.externo.productos.token:}")
+    private String fallbackBearerToken;
 
     @Value("${servicio.externo.productos.api-key:}")
     private String apiKey;
+
+    @Value("${gestopago.auth.id-distribuidor:83}")
+    private Integer idDistribuidor;
+
+    @Value("${gestopago.auth.codigo-dispositivo:GPS83-TPV-17}")
+    private String codigoDispositivo;
 
     @Value("${servicio.externo.productos.connect-timeout:5000}")
     private int connectTimeout;
@@ -43,17 +49,34 @@ public class ProductosFeignConfig {
 
     /**
      * Interceptor que agrega automáticamente el encabezado de autenticación Bearer Token,
-     * el encabezado X-API-Key (si está configurado) y los formatos esperados.
+     * obteniendo el token activo dinámico de {@link com.proyecto.servicios.service.GestoPagoTokenService}
+     * o recurriendo al token de configuración como fallback.
      *
+     * @param tokenServiceProvider proveedor perezoso del servicio de tokens de GestoPago.
      * @return instancia de {@link RequestInterceptor}.
      */
     @Bean
-    public RequestInterceptor bearerAuthRequestInterceptor() {
+    public RequestInterceptor bearerAuthRequestInterceptor(org.springframework.beans.factory.ObjectProvider<com.proyecto.servicios.service.GestoPagoTokenService> tokenServiceProvider) {
         return (RequestTemplate template) -> {
-            if (bearerToken != null && !bearerToken.isBlank()) {
-                template.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken.trim());
+            String token = null;
+
+            // Intentar obtener el token activo dinámico recién renovado
+            com.proyecto.servicios.service.GestoPagoTokenService tokenService = tokenServiceProvider.getIfAvailable();
+            if (tokenService != null) {
+                token = tokenService.obtenerTokenActivo(idDistribuidor, codigoDispositivo)
+                        .map(com.proyecto.servicios.entity.gestopago.GestoPagoToken::getToken)
+                        .orElse(null);
+            }
+
+            // Fallback al token estático de properties si no hay token en base de datos
+            if (token == null || token.isBlank()) {
+                token = fallbackBearerToken;
+            }
+
+            if (token != null && !token.isBlank()) {
+                template.header(HttpHeaders.AUTHORIZATION, "Bearer " + token.trim());
             } else {
-                log.warn("El Bearer Token para el servicio de productos no se encuentra configurado.");
+                log.warn("El Bearer Token para el servicio de productos no se encuentra disponible.");
             }
 
             if (apiKey != null && !apiKey.isBlank()) {
@@ -63,6 +86,7 @@ public class ProductosFeignConfig {
             template.header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE);
         };
     }
+
 
 
     /**
