@@ -44,6 +44,10 @@ import java.util.Map;
 )
 public class ConfigDB {
 
+    // [jdbc:]postgres[ql]://user:pass@host[:port]/db[?query]
+    private static final java.util.regex.Pattern EMBEDDED_CREDENTIALS_URL = java.util.regex.Pattern.compile(
+            "^(?:jdbc:)?postgres(?:ql)?://([^:/@]+):(.+)@([^:/@]+)(?::(\\d+))?(/[^?]*)(\\?.*)?$");
+
     @Autowired
     private Environment env;
 
@@ -58,25 +62,20 @@ public class ConfigDB {
             if (rawUrl != null && !rawUrl.isBlank()) {
                 rawUrl = rawUrl.trim();
                 // Si la URL contiene credenciales embebidas estilo Render (postgresql://user:pass@host/db)
-                if (rawUrl.contains("@")) {
-                    String cleanUriStr = rawUrl.replace("jdbc:", "");
-                    try {
-                        java.net.URI uri = new java.net.URI(cleanUriStr);
-                        String userInfo = uri.getUserInfo();
-                        if (userInfo != null && userInfo.contains(":")) {
-                            String[] parts = userInfo.split(":", 2);
-                            username = parts[0];
-                            password = parts[1];
-                        }
-                        String host = uri.getHost();
-                        int port = uri.getPort() > 0 ? uri.getPort() : 5432;
-                        String path = uri.getPath();
-                        rawUrl = "jdbc:postgresql://" + host + ":" + port + path;
-                    } catch (Exception ex) {
-                        log.warn("No se pudo parsear URI embebida, usando URL directa: {}", ex.getMessage());
-                    }
-                } else if (rawUrl.startsWith("postgresql://")) {
-                    rawUrl = "jdbc:" + rawUrl;
+                // el driver JDBC la rechaza: se extraen las credenciales y se reconstruye una URL limpia.
+                // Se parsea con regex (no java.net.URI) para tolerar caracteres especiales en el password
+                // y para no volcar credenciales en los logs.
+                java.util.regex.Matcher m = EMBEDDED_CREDENTIALS_URL.matcher(rawUrl);
+                if (m.matches()) {
+                    username = java.net.URLDecoder.decode(m.group(1), java.nio.charset.StandardCharsets.UTF_8);
+                    password = java.net.URLDecoder.decode(m.group(2), java.nio.charset.StandardCharsets.UTF_8);
+                    String host = m.group(3);
+                    String port = m.group(4) != null ? m.group(4) : "5432";
+                    String path = m.group(5);
+                    String query = m.group(6) != null ? m.group(6) : "";
+                    rawUrl = "jdbc:postgresql://" + host + ":" + port + path + query;
+                } else if (rawUrl.startsWith("postgresql://") || rawUrl.startsWith("postgres://")) {
+                    rawUrl = "jdbc:postgresql://" + rawUrl.substring(rawUrl.indexOf("://") + 3);
                 }
             }
 
