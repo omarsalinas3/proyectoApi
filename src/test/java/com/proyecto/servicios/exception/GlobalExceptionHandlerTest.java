@@ -1,6 +1,5 @@
 package com.proyecto.servicios.exception;
 
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Pruebas unitarias para el manejador global de excepciones {@link GlobalExceptionHandler}.
  *
  * @author Equipo de Desarrollo
- * @version 2.0
+ * @version 1.0
  */
 @DisplayName("Pruebas Unitarias - GlobalExceptionHandler")
 class GlobalExceptionHandlerTest {
@@ -38,9 +37,8 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response);
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(CodigoRespuestaEnum.ERROR_AUTENTICACION, response.getBody().getCodigoRespuesta());
-        assertEquals(CodigoRespuestaEnum.ERROR_AUTENTICACION.getCodigo(), response.getBody().getCodigo());
-        assertEquals(CodigoRespuestaEnum.ERROR_AUTENTICACION.getDescripcion(), response.getBody().getMensaje());
+        assertEquals(401, response.getBody().getCodigo());
+        assertEquals("Fallo de autenticación en servicio externo", response.getBody().getMensaje());
         assertEquals("Token inválido", response.getBody().getDetalle());
         assertNotNull(response.getBody().getTimestamp());
     }
@@ -58,9 +56,8 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response);
         assertEquals(HttpStatus.GATEWAY_TIMEOUT, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(CodigoRespuestaEnum.ERROR_TIMEOUT, response.getBody().getCodigoRespuesta());
-        assertEquals(CodigoRespuestaEnum.ERROR_TIMEOUT.getCodigo(), response.getBody().getCodigo());
-        assertEquals(CodigoRespuestaEnum.ERROR_TIMEOUT.getDescripcion(), response.getBody().getMensaje());
+        assertEquals(504, response.getBody().getCodigo());
+        assertEquals("Tiempo de espera agotado al comunicar con el servicio externo", response.getBody().getMensaje());
         assertNotNull(response.getBody().getTimestamp());
     }
 
@@ -77,9 +74,8 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_GATEWAY, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO, response.getBody().getCodigoRespuesta());
-        assertEquals(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getCodigo(), response.getBody().getCodigo());
-        assertEquals(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO.getDescripcion(), response.getBody().getMensaje());
+        assertEquals(502, response.getBody().getCodigo());
+        assertEquals("Error en el servicio externo", response.getBody().getMensaje());
         assertEquals("Error en proveedor", response.getBody().getDetalle());
     }
 
@@ -96,9 +92,8 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(CodigoRespuestaEnum.ERROR_INTERNO, response.getBody().getCodigoRespuesta());
-        assertEquals(CodigoRespuestaEnum.ERROR_INTERNO.getCodigo(), response.getBody().getCodigo());
-        assertEquals(CodigoRespuestaEnum.ERROR_INTERNO.getDescripcion(), response.getBody().getMensaje());
+        assertEquals(500, response.getBody().getCodigo());
+        assertEquals("Ocurrió un error interno al procesar la solicitud", response.getBody().getMensaje());
         assertNotNull(response.getBody().getTimestamp());
     }
 }
