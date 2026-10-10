@@ -52,15 +52,37 @@ public class ConfigDB {
         HikariConfig config = new HikariConfig();
         try {
             String rawUrl = env.getProperty("spring.datasource.url");
+            String username = env.getProperty("spring.datasource.username");
+            String password = env.getProperty("spring.datasource.password");
+
             if (rawUrl != null && !rawUrl.isBlank()) {
                 rawUrl = rawUrl.trim();
-                if (rawUrl.startsWith("postgresql://")) {
+                // Si la URL contiene credenciales embebidas estilo Render (postgresql://user:pass@host/db)
+                if (rawUrl.contains("@")) {
+                    String cleanUriStr = rawUrl.replace("jdbc:", "");
+                    try {
+                        java.net.URI uri = new java.net.URI(cleanUriStr);
+                        String userInfo = uri.getUserInfo();
+                        if (userInfo != null && userInfo.contains(":")) {
+                            String[] parts = userInfo.split(":", 2);
+                            username = parts[0];
+                            password = parts[1];
+                        }
+                        String host = uri.getHost();
+                        int port = uri.getPort() > 0 ? uri.getPort() : 5432;
+                        String path = uri.getPath();
+                        rawUrl = "jdbc:postgresql://" + host + ":" + port + path;
+                    } catch (Exception ex) {
+                        log.warn("No se pudo parsear URI embebida, usando URL directa: {}", ex.getMessage());
+                    }
+                } else if (rawUrl.startsWith("postgresql://")) {
                     rawUrl = "jdbc:" + rawUrl;
                 }
             }
+
             config.setJdbcUrl(rawUrl);
-            config.setPassword(env.getProperty("spring.datasource.password"));
-            config.setUsername(env.getProperty("spring.datasource.username"));
+            config.setUsername(username);
+            config.setPassword(password);
             String driverClass = env.getProperty("spring.datasource.driver-class-name");
             if (driverClass != null && !driverClass.isBlank()) {
                 config.setDriverClassName(driverClass);
