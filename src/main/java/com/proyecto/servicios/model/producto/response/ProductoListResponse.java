@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.model.producto.dto.ProductoItemDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,15 +17,16 @@ import java.util.List;
 /**
  * Data Transfer Object (DTO) de respuesta para la lista de productos obtenida del servicio externo.
  *
- * <p><strong>Convención de códigos:</strong>
+ * <p><strong>Reglas de diseño aplicadas:</strong>
  * <ul>
- *   <li>{@code codigoRespuesta = EXITO (0)} → operación exitosa.</li>
- *   <li>{@code codigoRespuesta != EXITO} → condición de error o advertencia.</li>
+ *   <li>Exclusión de nulos: {@link JsonInclude.Include#NON_NULL} evita serializar propiedades no informadas.</li>
+ *   <li>Tipado estricto: {@link Integer} para códigos de estado, {@link Long} para conteos y {@link LocalDateTime} para fechas.</li>
+ *   <li>Modularidad: Ubicado en paquete específico de respuestas {@code model.producto.response}.</li>
  * </ul>
  * </p>
  *
  * @author Equipo de Desarrollo
- * @version 2.0
+ * @version 1.0
  */
 @Data
 @Builder
@@ -39,17 +39,7 @@ public class ProductoListResponse implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * Código de resultado estandarizado.
-     * {@code 0 = EXITO}, valores mayores = errores o advertencias.
-     *
-     * @see CodigoRespuestaEnum
-     */
-    @JsonProperty("codigoRespuesta")
-    private CodigoRespuestaEnum codigoRespuesta;
-
-    /**
-     * Código numérico de resultado (retrocompatibilidad con el proveedor externo).
-     * Priorizar {@link #codigoRespuesta} para lógica de negocio interna.
+     * Código de resultado de la operación (ej. 200, 0 o código de negocio).
      */
     @JsonProperty("codigo")
     private Integer codigo;
@@ -61,7 +51,7 @@ public class ProductoListResponse implements Serializable {
     private String mensaje;
 
     /**
-     * Total de registros devueltos.
+     * Total de registros devueltos o disponibles en el sistema.
      */
     @JsonProperty("totalRegistros")
     private Long totalRegistros;
@@ -72,12 +62,6 @@ public class ProductoListResponse implements Serializable {
     @JsonProperty("fechaConsulta")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime fechaConsulta;
-
-    /**
-     * Origen de los datos obtenidos (SERVICIO_EXTERNO, CACHE_REDIS, BASE_DE_DATOS, SIN_DATOS).
-     */
-    @JsonProperty("origenDatos")
-    private String origenDatos;
 
     /**
      * Colección de productos retornados.

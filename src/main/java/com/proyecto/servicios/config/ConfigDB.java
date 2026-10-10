@@ -35,9 +35,7 @@ import java.util.Map;
 @EnableJpaRepositories(
         basePackages = {
                 "com.proyecto.servicios.repositorys.sf",
-                "com.proyecto.servicios.repositorys.gestopago",
-                "com.proyecto.servicios.repositorys.producto",
-                "com.proyecto.servicios.repositorys.cliente"
+                "com.proyecto.servicios.repositorys.gestopago"
         },
         transactionManagerRef = "sfTransactionManager",
         entityManagerFactoryRef = "sfEntityManagerFactory"
@@ -83,9 +81,7 @@ public class ConfigDB {
             em.setDataSource(dataSource);
             em.setPackagesToScan(
                     "com.proyecto.servicios.entity.sf",
-                    "com.proyecto.servicios.entity.gestopago",
-                    "com.proyecto.servicios.entity.producto",
-                    "com.proyecto.servicios.entity.cliente"
+                    "com.proyecto.servicios.entity.gestopago"
             );
             em.setPersistenceUnitName("sfDatasource");
             HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
@@ -94,8 +90,7 @@ public class ConfigDB {
             Map<String, Object> properties=new HashMap<>();
             properties.put("hibernate.hbm2ddl.auto", env.getProperty("spring.jpa.hibernate.ddl-auto", "update"));
             properties.put("hibernate.show-sql", false);
-            String dialect = env.getProperty("spring.jpa.properties.hibernate.dialect",
-                    env.getProperty("spring.jpa.database-platform", "org.hibernate.dialect.PostgreSQLDialect"));
+            String dialect = env.getProperty("spring.jpa.properties.hibernate.dialect");
             if (dialect != null && !dialect.isBlank()) {
                 properties.put("hibernate.dialect", dialect);
             }
