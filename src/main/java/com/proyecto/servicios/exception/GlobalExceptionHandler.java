@@ -117,8 +117,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
         String detalles = ex.getBindingResult().getFieldErrors().stream()
-                .map(FieldError::getDefaultMessage)
-                .collect(Collectors.joining(", "));
+                .map(fe -> "[" + fe.getField() + "] " + fe.getDefaultMessage())
+                .distinct()
+                .sorted()
+                .collect(Collectors.joining("; "));
 
         log.warn("Error de validación en los datos de entrada: {}", detalles);
         ErrorResponse error = ErrorResponse.builder()

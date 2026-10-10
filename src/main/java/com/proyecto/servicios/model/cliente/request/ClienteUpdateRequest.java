@@ -58,19 +58,28 @@ public class ClienteUpdateRequest implements Serializable {
 
     @Schema(description = "Sexo", example = "M")
     @NotBlank(message = "El sexo es obligatorio")
+    @Pattern(regexp = "(?i)^(M|F|H|MASCULINO|FEMENINO|HOMBRE|MUJER|OTRO)$",
+            message = "El sexo no es válido. Valores permitidos: M, F, MASCULINO, FEMENINO, OTRO")
     private String sexo;
 
     @Schema(description = "Nacionalidad", example = "Mexicana")
     @NotBlank(message = "La nacionalidad es obligatoria")
+    @Size(min = 4, max = 50, message = "La nacionalidad debe tener entre 4 y 50 caracteres")
+    @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+( [a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+)*$",
+            message = "La nacionalidad solo debe contener letras y espacios simples (sin números ni símbolos), por ejemplo: Mexicana")
     private String nacionalidad;
 
     @Schema(description = "Estado civil", example = "CASADO")
     @NotBlank(message = "El estado civil es obligatorio")
+    @Pattern(regexp = "(?i)^(SOLTERO|SOLTERA|CASADO|CASADA|UNION[ _]?LIBRE|UNIÓN[ _]?LIBRE|CONCUBINATO|DIVORCIADO|DIVORCIADA|VIUDO|VIUDA)$",
+            message = "El estado civil no es válido. Valores permitidos: SOLTERO, CASADO, UNION_LIBRE, DIVORCIADO, VIUDO")
     private String estadoCivil;
 
     @Schema(description = "Correo electrónico", example = "carlos.nuevo@example.com")
     @NotBlank(message = "El correo electrónico es obligatorio")
     @Email(message = "El formato del correo electrónico no es válido")
+    @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}$",
+            message = "El correo electrónico debe tener el formato usuario@dominio.com (con dominio y extensión válidos)")
     @Size(max = 100, message = "El correo no debe exceder 100 caracteres")
     private String correo;
 
@@ -85,10 +94,16 @@ public class ClienteUpdateRequest implements Serializable {
 
     @Schema(description = "Ocupación o puesto actual", example = "Líder Técnico")
     @NotBlank(message = "La ocupación es obligatoria")
+    @Size(min = 2, max = 100, message = "La ocupación debe tener entre 2 y 100 caracteres")
+    @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ .,-]*$",
+            message = "La ocupación solo debe contener letras, espacios, puntos, comas y guiones (sin números ni otros símbolos)")
     private String ocupacion;
 
     @Schema(description = "Empresa actual", example = "Global Bank México")
     @NotBlank(message = "La empresa es obligatoria")
+    @Size(min = 2, max = 100, message = "La empresa debe tener entre 2 y 100 caracteres")
+    @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9][a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9 .,&'-]*$",
+            message = "La empresa solo debe contener letras, números, espacios y los símbolos . , & ' -")
     private String empresa;
 
     @Schema(description = "Ingreso mensual comprobable", example = "45000.00")
