@@ -49,9 +49,16 @@ public class ConfigDB {
 
     @Bean(name="sfDatasource")
     public DataSource sfDatasource(){
-        HikariConfig config=new HikariConfig();
-        try{
-            config.setJdbcUrl(env.getProperty("spring.datasource.url"));
+        HikariConfig config = new HikariConfig();
+        try {
+            String rawUrl = env.getProperty("spring.datasource.url");
+            if (rawUrl != null && !rawUrl.isBlank()) {
+                rawUrl = rawUrl.trim();
+                if (rawUrl.startsWith("postgresql://")) {
+                    rawUrl = "jdbc:" + rawUrl;
+                }
+            }
+            config.setJdbcUrl(rawUrl);
             config.setPassword(env.getProperty("spring.datasource.password"));
             config.setUsername(env.getProperty("spring.datasource.username"));
             String driverClass = env.getProperty("spring.datasource.driver-class-name");
