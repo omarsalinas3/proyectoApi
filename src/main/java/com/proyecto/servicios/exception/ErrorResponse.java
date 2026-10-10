@@ -3,6 +3,7 @@ package com.proyecto.servicios.exception;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -32,6 +33,12 @@ import java.time.LocalDateTime;
 public class ErrorResponse implements Serializable {
 
     private static final long serialVersionUID = 1L;
+
+    /**
+     * Código de respuesta tipado según la enumeración estándar de la API.
+     */
+    @JsonProperty("codigoRespuesta")
+    private CodigoRespuestaEnum codigoRespuesta;
 
     /**
      * Código de estado o código de error de negocio.

@@ -1,6 +1,9 @@
 package com.proyecto.servicios.controller;
 
+import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.exception.ErrorResponse;
+import com.proyecto.servicios.model.producto.request.ProductoConsultaRequest;
+import com.proyecto.servicios.model.producto.response.ProductoAgrupadoResponse;
 import com.proyecto.servicios.model.producto.response.ProductoListResponse;
 import com.proyecto.servicios.service.ProductoService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -83,6 +88,114 @@ public class ProductoController {
     public ResponseEntity<ProductoListResponse> obtenerListaProductos() {
         log.info("Recibida petición HTTP GET /api/v1/productos");
         ProductoListResponse response = productoService.consultarListaProductos();
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
+     * Endpoint REST para consultar los productos clasificados y agrupados por su tipo de presentación en front.
+     *
+     * @return {@link ResponseEntity} con el {@link com.proyecto.servicios.model.producto.response.ProductoAgrupadoResponse} y código HTTP 200 OK.
+     */
+    @Operation(
+            summary = "Consultar productos agrupados por tipoFront",
+            description = "Clasifica el catálogo de productos por tipo de presentación (tipoFront 1, 2, 3...) mediante evaluación funcional con Java Streams y Predicates."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Catálogo agrupado por tipoFront obtenido exitosamente",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = com.proyecto.servicios.model.producto.response.ProductoAgrupadoResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autorizado - Fallo de autenticación",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "502",
+                    description = "Bad Gateway - Fallo en integración",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    @GetMapping(value = "/agrupados-por-tipo-front", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ProductoAgrupadoResponse> obtenerProductosAgrupadosPorTipoFront() {
+        log.info("Recibida petición HTTP GET /api/v1/productos/agrupados-por-tipo-front");
+        ProductoAgrupadoResponse response = productoService.obtenerProductosAgrupadosPorTipoFront();
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
+     * Endpoint POST para consultar el catálogo de productos desde caché (Redis o PostgreSQL).
+     *
+     * <p><strong>Flujo:</strong>
+     * <ol>
+     *   <li>Consulta Redis: si hay datos en la llave {@code catalogo:productos} → retorna filtrado.</li>
+     *   <li>Consulta PostgreSQL: si Redis está vacío → lee desde la tabla {@code productos_catalogo}.</li>
+     *   <li>Sin datos: devuelve lista vacía con mensaje explicativo.</li>
+     * </ol>
+     * </p>
+     *
+     * @param request filtros opcionales: {@code tipoFront}, {@code servicio}, {@code producto}.
+     * @return {@link ResponseEntity} con el {@link ProductoListResponse} filtrado.
+     */
+    @Operation(
+            summary = "Consultar catálogo desde caché (Redis → PostgreSQL)",
+            description = "Consulta el catálogo almacenado. Primero revisa Redis; si no hay datos, consulta PostgreSQL. " +
+                    "Nunca llama al servicio externo. Soporta filtros opcionales por tipoFront, servicio y producto."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Catálogo recuperado exitosamente desde caché (Redis o PostgreSQL)",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ProductoListResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "204",
+                    description = "Sin datos en caché - Ejecutar primero GET /api/v1/productos para poblar el catálogo",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ProductoListResponse.class))
+            )
+    })
+    @PostMapping(value = "/consultar",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ProductoListResponse> consultarDesdeCachePorFiltros(
+            @RequestBody(required = false) ProductoConsultaRequest request) {
+        log.info("Recibida petición HTTP POST /api/v1/productos/consultar");
+        ProductoListResponse response = productoService.consultarDesdeCacheOBaseDeDatos(request);
+        HttpStatus status = (response.getCodigoRespuesta() == CodigoRespuestaEnum.SIN_DATOS_EN_CACHE
+                || (response.getCodigo() != null && (response.getCodigo() == 204 || response.getCodigo() == 1)))
+                ? HttpStatus.NO_CONTENT
+                : HttpStatus.OK;
+        return new ResponseEntity<>(response, status);
+    }
+
+    /**
+     * Endpoint REST para consultar los productos para el frontend ordenados de manera ascendente.
+     *
+     * @return {@link ResponseEntity} con {@link ProductoListResponse} ordenado ascendentemente.
+     */
+    @Operation(
+            summary = "Consultar catálogo ordenado ascendentemente para Frontend",
+            description = "Devuelve el listado completo de productos ordenados ascendentemente por nombre de producto para consumo directo de interfaz de usuario."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Productos ordenados obtenidos exitosamente",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProductoListResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "502",
+                    description = "Bad Gateway - Error de comunicación con el servicio externo",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    @GetMapping(value = "/frontend", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ProductoListResponse> obtenerProductosParaFrontend() {
+        log.info("Recibida petición HTTP GET /api/v1/productos/frontend");
+        ProductoListResponse response = productoService.consultarProductosParaFrontend();
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 }

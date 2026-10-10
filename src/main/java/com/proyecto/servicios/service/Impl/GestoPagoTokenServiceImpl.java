@@ -75,6 +75,12 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
 
     @Override
     public Optional<GestoPagoToken> obtenerTokenActivo(Integer idDistribuidor, String codigoDispositivo) {
-        return tokenRepository.findByIdDistribuidorAndCodigoDispositivo(idDistribuidor, codigoDispositivo);
+        Optional<GestoPagoToken> tokenOpt = tokenRepository.findByIdDistribuidorAndCodigoDispositivo(idDistribuidor, codigoDispositivo);
+        if (tokenOpt.isEmpty() || tokenOpt.get().getToken() == null || tokenOpt.get().getToken().isBlank()) {
+            log.info("No se encontró token activo en BD para distribuidor={}. Ejecutando renovación inmediata...", idDistribuidor);
+            renovarToken();
+            return tokenRepository.findByIdDistribuidorAndCodigoDispositivo(idDistribuidor, codigoDispositivo);
+        }
+        return tokenOpt;
     }
 }
