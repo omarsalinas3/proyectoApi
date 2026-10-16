@@ -3,7 +3,10 @@ package com.proyecto.servicios.controller;
 import com.proyecto.servicios.exception.ErrorResponse;
 import com.proyecto.servicios.model.cliente.response.CuentaResponse;
 import com.proyecto.servicios.model.cliente.response.SaldoResponse;
+import com.proyecto.servicios.security.ControlAcceso;
 import com.proyecto.servicios.service.CuentaService;
+import com.proyecto.servicios.util.PatronesValidacion;
+import jakarta.validation.constraints.Pattern;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -44,6 +47,7 @@ import java.util.List;
 public class CuentaController {
 
     private final CuentaService cuentaService;
+    private final ControlAcceso controlAcceso;
 
     @Operation(summary = "Consultar cuenta por número de 16 dígitos", description = "Recupera los datos de la cuenta bancaria y su titular.")
     @ApiResponses({
@@ -61,8 +65,10 @@ public class CuentaController {
     @GetMapping(value = "/{numeroCuenta}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<CuentaResponse> consultarPorNumeroCuenta(
             @Parameter(description = "Número de cuenta de 16 dígitos", example = "1234567890123456")
+            @Pattern(regexp = PatronesValidacion.NUMERO_CUENTA, message = PatronesValidacion.MENSAJE_NUMERO_CUENTA)
             @PathVariable String numeroCuenta) {
         log.info("Petición GET /api/v1/cuentas/{}", numeroCuenta);
+        controlAcceso.validarRecursoPropio(c -> PatronesValidacion.esCuentaDe(c, numeroCuenta), "la cuenta");
         CuentaResponse response = cuentaService.consultarPorNumeroCuenta(numeroCuenta);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -76,6 +82,7 @@ public class CuentaController {
     @GetMapping(value = "/activas", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<List<CuentaResponse>> consultarCuentasActivas() {
         log.info("Petición GET /api/v1/cuentas/activas");
+        controlAcceso.validarRolEjecutivo();
         List<CuentaResponse> response = cuentaService.consultarCuentasActivas();
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -96,8 +103,10 @@ public class CuentaController {
     @GetMapping(value = "/{numeroCuenta}/saldo", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<SaldoResponse> consultarSaldoPorNumeroCuenta(
             @Parameter(description = "Número de cuenta de 16 dígitos", example = "1234567890123456")
+            @Pattern(regexp = PatronesValidacion.NUMERO_CUENTA, message = PatronesValidacion.MENSAJE_NUMERO_CUENTA)
             @PathVariable String numeroCuenta) {
         log.info("Petición GET /api/v1/cuentas/{}/saldo", numeroCuenta);
+        controlAcceso.validarRecursoPropio(c -> PatronesValidacion.esCuentaDe(c, numeroCuenta), "la cuenta");
         SaldoResponse response = cuentaService.consultarSaldoPorNumeroCuenta(numeroCuenta);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }

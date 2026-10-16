@@ -3,7 +3,21 @@ package com.proyecto.servicios.exception;
 import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import feign.FeignException;
 import feign.RetryableException;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Path;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -11,7 +25,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -124,9 +140,9 @@ public class GlobalExceptionHandler {
 
         log.warn("Error de validación en los datos de entrada: {}", detalles);
         ErrorResponse error = ErrorResponse.builder()
-                .codigoRespuesta(CodigoRespuestaEnum.ERROR_INTERNO)
-                .codigo(HttpStatus.BAD_REQUEST.value())
-                .mensaje("Parámetros de entrada inválidos")
+                .codigoRespuesta(CodigoRespuestaEnum.ERROR_PARAMETRO_INVALIDO)
+                .codigo(CodigoRespuestaEnum.ERROR_PARAMETRO_INVALIDO.getCodigo())
+                .mensaje(CodigoRespuestaEnum.ERROR_PARAMETRO_INVALIDO.getDescripcion())
                 .detalle(detalles)
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -153,8 +169,10 @@ public class GlobalExceptionHandler {
             } else {
                 detalle = "Tipo de dato no coincidente en la petición JSON. Verifique que los valores numéricos no lleven comillas";
             }
-        } else if (rootCause != null && rootCause.getMessage() != null) {
-            detalle = rootCause.getMessage();
+        } else if (rootCause instanceof com.fasterxml.jackson.core.JsonProcessingException jpe && jpe.getLocation() != null) {
+            // No se devuelve el mensaje interno del parser; solo la posición del error para que el consumidor lo corrija
+            detalle = String.format("El cuerpo de la petición no es un JSON válido (línea %d, columna %d). Revise comillas, comas y llaves",
+                    jpe.getLocation().getLineNr(), jpe.getLocation().getColumnNr());
         }
 
         log.warn("Error de deserialización JSON (HTTP 404): {}", detalle);
@@ -266,6 +284,183 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .build();
         return new ResponseEntity<>(error, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * Maneja parámetros de ruta o de consulta que no cumplen sus restricciones (ej. {@code id <= 0},
+     * CURP con formato inválido). Se valida antes de ejecutar cualquier lógica de negocio.
+     *
+     * @return respuesta con código HTTP 400 Bad Request.
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResponse> handleHandlerMethodValidation(HandlerMethodValidationException ex) {
+        String detalles = ex.getAllValidationResults().stream()
+                .flatMap(r -> r.getResolvableErrors().stream()
+                        .map(e -> "[" + r.getMethodParameter().getParameterName() + "] " + e.getDefaultMessage()))
+                .distinct()
+                .sorted()
+                .collect(Collectors.joining("; "));
+        log.warn("Parámetros de ruta/consulta inválidos: {}", detalles);
+        return construir(CodigoRespuestaEnum.ERROR_PARAMETRO_INVALIDO, detalles, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Maneja violaciones de restricciones lanzadas por validación de métodos ({@code @Validated}).
+     *
+     * @return respuesta con código HTTP 400 Bad Request.
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+        Set<ConstraintViolation<?>> violaciones = ex.getConstraintViolations();
+        String detalles = violaciones.stream()
+                .map(v -> "[" + ultimoNodo(v.getPropertyPath()) + "] " + v.getMessage())
+                .distinct()
+                .sorted()
+                .collect(Collectors.joining("; "));
+        log.warn("Restricciones de validación incumplidas: {}", detalles);
+        return construir(CodigoRespuestaEnum.ERROR_PARAMETRO_INVALIDO, detalles, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Maneja parámetros con tipo incorrecto (ej. {@code /clientes/abc} cuando se espera un ID numérico).
+     *
+     * @return respuesta con código HTTP 400 Bad Request.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        Class<?> tipo = ex.getRequiredType();
+        String esperado;
+        if (tipo != null && LocalDate.class.isAssignableFrom(tipo)) {
+            esperado = "una fecha con formato YYYY-MM-DD";
+        } else if (tipo != null && Number.class.isAssignableFrom(tipo)) {
+            esperado = "un número entero válido";
+        } else {
+            esperado = "un valor de tipo " + (tipo != null ? tipo.getSimpleName() : "válido");
+        }
+        String valor = String.valueOf(ex.getValue());
+        if (valor.length() > 50) {
+            valor = valor.substring(0, 50) + "...";
+        }
+        String detalle = String.format("[%s] El parámetro '%s' debe ser %s (valor recibido: '%s')",
+                ex.getName(), ex.getName(), esperado, valor);
+        log.warn("Tipo de parámetro inválido: {}", detalle);
+        return construir(CodigoRespuestaEnum.ERROR_PARAMETRO_INVALIDO, detalle, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Maneja la ausencia de parámetros de consulta obligatorios.
+     *
+     * @return respuesta con código HTTP 400 Bad Request.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException ex) {
+        String detalle = String.format("[%s] El parámetro '%s' es obligatorio", ex.getParameterName(), ex.getParameterName());
+        log.warn("Parámetro obligatorio ausente: {}", ex.getParameterName());
+        return construir(CodigoRespuestaEnum.ERROR_PARAMETRO_INVALIDO, detalle, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Maneja parámetros semánticamente inválidos detectados en el controlador (ej. rango de fechas invertido).
+     *
+     * @return respuesta con código HTTP 400 Bad Request.
+     */
+    @ExceptionHandler(ParametroInvalidoException.class)
+    public ResponseEntity<ErrorResponse> handleParametroInvalido(ParametroInvalidoException ex) {
+        log.warn("Parámetro inválido: {}", ex.getMessage());
+        return construir(CodigoRespuestaEnum.ERROR_PARAMETRO_INVALIDO, ex.getMessage(), HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Maneja peticiones protegidas sin un token válido.
+     *
+     * @return respuesta con código HTTP 401 Unauthorized.
+     */
+    @ExceptionHandler(NoAutenticadoException.class)
+    public ResponseEntity<ErrorResponse> handleNoAutenticado(NoAutenticadoException ex) {
+        return construir(CodigoRespuestaEnum.ERROR_NO_AUTENTICADO, ex.getMessage(), HttpStatus.UNAUTHORIZED);
+    }
+
+    /**
+     * Maneja intentos de acceder a registros de otro cliente o a operaciones reservadas para ejecutivos.
+     *
+     * @return respuesta con código HTTP 403 Forbidden.
+     */
+    @ExceptionHandler({AccesoDenegadoException.class, AccessDeniedException.class})
+    public ResponseEntity<ErrorResponse> handleAccesoDenegado(RuntimeException ex) {
+        String detalle = ex instanceof AccesoDenegadoException
+                ? ex.getMessage()
+                : "No tiene permisos para ejecutar esta operación";
+        return construir(CodigoRespuestaEnum.ERROR_ACCESO_DENEGADO, detalle, HttpStatus.FORBIDDEN);
+    }
+
+    /**
+     * Maneja rutas inexistentes (ej. {@code GET /}) para responder 404 en lugar de error interno.
+     *
+     * @return respuesta con código HTTP 404 Not Found.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
+        HttpMethod metodo = ex.getHttpMethod();
+        String detalle = String.format("No existe el recurso %s /%s. Consulte la documentación en /swagger-ui.html",
+                metodo != null ? metodo.name() : "", ex.getResourcePath());
+        return construir(CodigoRespuestaEnum.ERROR_RECURSO_NO_ENCONTRADO, detalle, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Maneja métodos HTTP no soportados por el recurso.
+     *
+     * @return respuesta con código HTTP 405 Method Not Allowed.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        String detalle = String.format("El método %s no está permitido para este recurso. Métodos permitidos: %s",
+                ex.getMethod(), ex.getSupportedHttpMethods());
+        return construir(CodigoRespuestaEnum.ERROR_METODO_NO_PERMITIDO, detalle, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    /**
+     * Maneja peticiones con un {@code Content-Type} distinto de JSON.
+     *
+     * @return respuesta con código HTTP 415 Unsupported Media Type.
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        String detalle = String.format("El tipo de contenido '%s' no es soportado. Use 'Content-Type: %s'",
+                ex.getContentType(), MediaType.APPLICATION_JSON_VALUE);
+        return construir(CodigoRespuestaEnum.ERROR_TIPO_CONTENIDO, detalle, HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+    }
+
+    /**
+     * Maneja violaciones de restricciones de base de datos (ej. dos altas simultáneas con la misma CURP)
+     * sin exponer el detalle SQL al consumidor.
+     *
+     * @return respuesta con código HTTP 409 Conflict.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Violación de integridad de datos: {}", ex.getMostSpecificCause().getMessage());
+        return construir(CodigoRespuestaEnum.ERROR_CONFLICTO_DATOS,
+                "El registro entra en conflicto con información existente (dato único duplicado o referencia inválida)",
+                HttpStatus.CONFLICT);
+    }
+
+    private ResponseEntity<ErrorResponse> construir(CodigoRespuestaEnum codigo, String detalle, HttpStatusCode status) {
+        ErrorResponse error = ErrorResponse.builder()
+                .codigoRespuesta(codigo)
+                .codigo(codigo.getCodigo())
+                .mensaje(codigo.getDescripcion())
+                .detalle(detalle)
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(error, status);
+    }
+
+    private static String ultimoNodo(Path path) {
+        String nombre = null;
+        for (Path.Node nodo : path) {
+            nombre = nodo.getName();
+        }
+        return nombre != null ? nombre : path.toString();
     }
 
     /**

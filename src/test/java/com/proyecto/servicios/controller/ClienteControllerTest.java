@@ -30,6 +30,9 @@ class ClienteControllerTest {
     @Mock
     private ClienteService clienteService;
 
+    @Mock
+    private com.proyecto.servicios.security.ControlAcceso controlAcceso;
+
     @InjectMocks
     private ClienteController clienteController;
 

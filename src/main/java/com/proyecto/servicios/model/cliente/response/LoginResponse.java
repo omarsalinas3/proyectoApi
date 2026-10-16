@@ -60,6 +60,15 @@ public class LoginResponse implements Serializable {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate ultimaActividad;
 
-    @Schema(description = "Token de sesión generado", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+    @Schema(description = "Token JWT que debe enviarse en el encabezado 'Authorization: Bearer <token>'", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
     private String token;
+
+    @Schema(description = "Tipo de token", example = "Bearer")
+    private String tipoToken;
+
+    @Schema(description = "Vigencia del token en segundos", example = "1800")
+    private Long expiraEnSegundos;
+
+    @Schema(description = "Rol del usuario autenticado (CLIENTE o EJECUTIVO)", example = "CLIENTE")
+    private String rol;
 }

@@ -1,7 +1,9 @@
 package com.proyecto.servicios.util;
 
 import lombok.extern.slf4j.Slf4j;
+import com.proyecto.servicios.exception.ValidacionNegocioException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Cipher;
@@ -20,7 +22,8 @@ import java.util.Base64;
  * <p><strong>Algoritmos implementados:</strong>
  * <ul>
  *   <li>AES-128/256 para cifrado simétrico reversible (datos biométricos y usuario).</li>
- *   <li>SHA-256 con salt para hashing irreversible de contraseñas.</li>
+ *   <li>BCrypt (con sal aleatoria por contraseña) para hashing irreversible de contraseñas. Los hashes SHA-256
+ *   heredados se siguen verificando y se migran a BCrypt en el siguiente inicio de sesión.</li>
  * </ul>
  * </p>
  *
@@ -33,6 +36,10 @@ public class CryptoService {
 
     private static final String AES_ALGORITHM = "AES";
     private static final String HASH_ALGORITHM = "SHA-256";
+    private static final String PREFIJO_BCRYPT = "$2";
+    /** BCrypt solo considera los primeros 72 bytes; contraseñas más largas se rechazan para evitar truncamientos. */
+    private static final int MAX_BYTES_PASSWORD = 72;
+    private static final BCryptPasswordEncoder BCRYPT = new BCryptPasswordEncoder();
 
     private final SecretKeySpec secretKeySpec;
 
@@ -93,15 +100,50 @@ public class CryptoService {
     }
 
     /**
-     * Genera un hash SHA-256 seguro para almacenamiento de contraseñas.
+     * Genera un hash BCrypt (con sal aleatoria) para almacenamiento de contraseñas.
      *
      * @param rawPassword contraseña en texto plano.
-     * @return hash en formato hexadecimal.
+     * @return hash BCrypt.
+     * @throws ValidacionNegocioException si la contraseña excede 72 bytes.
      */
     public String hashPassword(String rawPassword) {
         if (rawPassword == null) {
             return null;
         }
+        if (rawPassword.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES_PASSWORD) {
+            throw new ValidacionNegocioException("La contraseña no debe exceder " + MAX_BYTES_PASSWORD + " caracteres");
+        }
+        return BCRYPT.encode(rawPassword);
+    }
+
+    /**
+     * Compara una contraseña en texto plano contra su hash almacenado (BCrypt o SHA-256 heredado).
+     *
+     * @param rawPassword contraseña enviada por el usuario.
+     * @param hashedPassword hash almacenado en la base de datos.
+     * @return {@code true} si coinciden, {@code false} en caso contrario.
+     */
+    public boolean verifyPassword(String rawPassword, String hashedPassword) {
+        if (rawPassword == null || hashedPassword == null
+                || rawPassword.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES_PASSWORD) {
+            return false;
+        }
+        if (hashedPassword.startsWith(PREFIJO_BCRYPT)) {
+            return BCRYPT.matches(rawPassword, hashedPassword);
+        }
+        String generatedHash = legacySha256(rawPassword);
+        return MessageDigest.isEqual(generatedHash.getBytes(StandardCharsets.UTF_8),
+                hashedPassword.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Indica si el hash almacenado usa el formato anterior (SHA-256 sin sal) y debe regenerarse con BCrypt.
+     */
+    public boolean requiereMigracionHash(String hashedPassword) {
+        return hashedPassword != null && !hashedPassword.startsWith(PREFIJO_BCRYPT);
+    }
+
+    private String legacySha256(String rawPassword) {
         try {
             MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM);
             byte[] hash = digest.digest(rawPassword.getBytes(StandardCharsets.UTF_8));
@@ -116,22 +158,6 @@ public class CryptoService {
             log.error("Error al generar hash de contraseña: {}", e.getMessage());
             throw new RuntimeException("Error al procesar seguridad de contraseña", e);
         }
-    }
-
-    /**
-     * Compara una contraseña en texto plano contra su hash almacenado.
-     *
-     * @param rawPassword contraseña enviada por el usuario.
-     * @param hashedPassword hash almacenado en la base de datos.
-     * @return {@code true} si coinciden, {@code false} en caso contrario.
-     */
-    public boolean verifyPassword(String rawPassword, String hashedPassword) {
-        if (rawPassword == null || hashedPassword == null) {
-            return false;
-        }
-        String generatedHash = hashPassword(rawPassword);
-        return MessageDigest.isEqual(generatedHash.getBytes(StandardCharsets.UTF_8),
-                hashedPassword.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

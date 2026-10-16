@@ -29,6 +29,9 @@ class CuentaControllerTest {
     @Mock
     private CuentaService cuentaService;
 
+    @Mock
+    private com.proyecto.servicios.security.ControlAcceso controlAcceso;
+
     @InjectMocks
     private CuentaController cuentaController;
 

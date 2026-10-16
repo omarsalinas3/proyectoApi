@@ -1,10 +1,13 @@
 package com.proyecto.servicios.controller;
 
 import com.proyecto.servicios.exception.ErrorResponse;
+import com.proyecto.servicios.exception.ParametroInvalidoException;
 import com.proyecto.servicios.model.cliente.request.ClienteRegistroRequest;
 import com.proyecto.servicios.model.cliente.request.ClienteUpdateRequest;
 import com.proyecto.servicios.model.cliente.response.ClienteResponse;
+import com.proyecto.servicios.security.ControlAcceso;
 import com.proyecto.servicios.service.ClienteService;
+import com.proyecto.servicios.util.PatronesValidacion;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -14,6 +17,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -55,6 +62,7 @@ import java.util.List;
 public class ClienteController {
 
     private final ClienteService clienteService;
+    private final ControlAcceso controlAcceso;
 
     @Operation(
             summary = "Registrar nuevo cliente (Onboarding)",
@@ -117,9 +125,11 @@ public class ClienteController {
     })
     @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ClienteResponse> actualizarCliente(
-            @Parameter(description = "Identificador único del cliente", example = "1") @PathVariable Long id,
+            @Parameter(description = "Identificador único del cliente", example = "1")
+            @Positive(message = PatronesValidacion.MENSAJE_ID) @PathVariable Long id,
             @Valid @RequestBody ClienteUpdateRequest request) {
         log.info("Petición PUT /api/v1/clientes/{}", id);
+        controlAcceso.validarAccesoCliente(id);
         ClienteResponse response = clienteService.actualizarCliente(id, request);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -142,8 +152,10 @@ public class ClienteController {
     })
     @DeleteMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ClienteResponse> eliminarClienteLogico(
-            @Parameter(description = "Identificador único del cliente", example = "1") @PathVariable Long id) {
+            @Parameter(description = "Identificador único del cliente", example = "1")
+            @Positive(message = PatronesValidacion.MENSAJE_ID) @PathVariable Long id) {
         log.info("Petición DELETE /api/v1/clientes/{}", id);
+        controlAcceso.validarAccesoCliente(id);
         ClienteResponse response = clienteService.eliminarClienteLogico(id);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -154,8 +166,11 @@ public class ClienteController {
             @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ClienteResponse> consultarPorId(@PathVariable Long id) {
+    public ResponseEntity<ClienteResponse> consultarPorId(
+            @Parameter(description = "Identificador único del cliente", example = "1")
+            @Positive(message = PatronesValidacion.MENSAJE_ID) @PathVariable Long id) {
         log.info("Petición GET /api/v1/clientes/{}", id);
+        controlAcceso.validarAccesoCliente(id);
         ClienteResponse response = clienteService.consultarPorId(id);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -166,8 +181,10 @@ public class ClienteController {
             @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping(value = "/curp/{curp}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ClienteResponse> consultarPorCurp(@PathVariable String curp) {
+    public ResponseEntity<ClienteResponse> consultarPorCurp(
+            @Pattern(regexp = PatronesValidacion.CURP, message = PatronesValidacion.MENSAJE_CURP) @PathVariable String curp) {
         log.info("Petición GET /api/v1/clientes/curp/{}", curp);
+        controlAcceso.validarRecursoPropio(c -> curp.equalsIgnoreCase(c.getCurp()), "el cliente");
         ClienteResponse response = clienteService.consultarPorCurp(curp);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -178,8 +195,10 @@ public class ClienteController {
             @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping(value = "/rfc/{rfc}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ClienteResponse> consultarPorRfc(@PathVariable String rfc) {
+    public ResponseEntity<ClienteResponse> consultarPorRfc(
+            @Pattern(regexp = PatronesValidacion.RFC, message = PatronesValidacion.MENSAJE_RFC) @PathVariable String rfc) {
         log.info("Petición GET /api/v1/clientes/rfc/{}", rfc);
+        controlAcceso.validarRecursoPropio(c -> rfc.equalsIgnoreCase(c.getRfc()), "el cliente");
         ClienteResponse response = clienteService.consultarPorRfc(rfc);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -190,8 +209,11 @@ public class ClienteController {
             @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping(value = "/correo/{correo}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ClienteResponse> consultarPorCorreo(@PathVariable String correo) {
+    public ResponseEntity<ClienteResponse> consultarPorCorreo(
+            @Email(message = "El correo electrónico no tiene un formato válido (ej. usuario@dominio.com)")
+            @Size(max = 100, message = "El correo electrónico no debe exceder 100 caracteres") @PathVariable String correo) {
         log.info("Petición GET /api/v1/clientes/correo/{}", correo);
+        controlAcceso.validarRecursoPropio(c -> correo.equalsIgnoreCase(c.getCorreo()), "el cliente");
         ClienteResponse response = clienteService.consultarPorCorreo(correo);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -202,8 +224,10 @@ public class ClienteController {
             @ApiResponse(responseCode = "404", description = "Cuenta no encontrada", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping(value = "/cuenta/{numeroCuenta}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ClienteResponse> consultarPorNumeroCuenta(@PathVariable String numeroCuenta) {
+    public ResponseEntity<ClienteResponse> consultarPorNumeroCuenta(
+            @Pattern(regexp = PatronesValidacion.NUMERO_CUENTA, message = PatronesValidacion.MENSAJE_NUMERO_CUENTA) @PathVariable String numeroCuenta) {
         log.info("Petición GET /api/v1/clientes/cuenta/{}", numeroCuenta);
+        controlAcceso.validarRecursoPropio(c -> PatronesValidacion.esCuentaDe(c, numeroCuenta), "la cuenta");
         ClienteResponse response = clienteService.consultarPorNumeroCuenta(numeroCuenta);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -218,6 +242,7 @@ public class ClienteController {
     public ResponseEntity<List<ClienteResponse>> consultarTodos(
             @Parameter(description = "Filtrar únicamente clientes activos") @RequestParam(required = false) Boolean soloActivos) {
         log.info("Petición GET /api/v1/clientes (soloActivos: {})", soloActivos);
+        controlAcceso.validarRolEjecutivo();
         List<ClienteResponse> response = clienteService.consultarTodos(soloActivos);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -235,6 +260,10 @@ public class ClienteController {
             @Parameter(description = "Fecha de fin (YYYY-MM-DD)", example = "2026-12-31")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fin) {
         log.info("Petición GET /api/v1/clientes/rango-fechas ({} al {})", inicio, fin);
+        controlAcceso.validarRolEjecutivo();
+        if (inicio.isAfter(fin)) {
+            throw new ParametroInvalidoException("[inicio] La fecha de inicio (" + inicio + ") no puede ser posterior a la fecha de fin (" + fin + ")");
+        }
         List<ClienteResponse> response = clienteService.consultarPorRangoFechas(inicio, fin);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }

@@ -39,6 +39,9 @@ class AuthServiceImplTest {
     private CryptoService cryptoService;
 
     @Mock
+    private com.proyecto.servicios.security.JwtService jwtService;
+
+    @Mock
     private BiometricService biometricService;
 
     @InjectMocks
@@ -158,6 +161,109 @@ class AuthServiceImplTest {
         assertNotNull(response);
         assertFalse(response.getSesionActiva());
         assertEquals(0, response.getCodigo());
+        verify(loginRepository).save(loginEntity);
+    }
+
+    @Test
+    @DisplayName("Usuario inexistente y contraseña incorrecta devuelven el mismo mensaje (sin enumeración de usuarios)")
+    void testMensajeGenericoCredenciales() {
+        com.proyecto.servicios.repositorys.cliente.UsuarioRepository usuarioRepository =
+                mock(com.proyecto.servicios.repositorys.cliente.UsuarioRepository.class);
+        ReflectionTestUtils.setField(authService, "usuarioRepository", usuarioRepository);
+        when(cryptoService.encrypt(anyString())).thenAnswer(i -> "enc_" + i.getArgument(0));
+        when(loginRepository.findByUsernameCifrado("enc_nadie")).thenReturn(Optional.empty());
+        when(usuarioRepository.findByCorreo("nadie")).thenReturn(Optional.empty());
+        when(usuarioRepository.findByCurp("NADIE")).thenReturn(Optional.empty());
+        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.verifyPassword("Mala123!", "hashed_password_123")).thenReturn(false);
+
+        CredencialesInvalidasException noExiste = assertThrows(CredencialesInvalidasException.class,
+                () -> authService.login(LoginRequest.builder().bandera(1).username("nadie").password("Mala123!").build()));
+        CredencialesInvalidasException malaClave = assertThrows(CredencialesInvalidasException.class,
+                () -> authService.login(LoginRequest.builder().bandera(1).username("carlos.h95").password("Mala123!").build()));
+        assertEquals(noExiste.getMessage(), malaClave.getMessage());
+    }
+
+    @Test
+    @DisplayName("Face ID debe rechazarse si el cliente no tiene biometría registrada")
+    void testFaceIdSinBiometriaRegistrada() {
+        loginEntity.setDatosBiometricosPrecision(null);
+        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+
+        LoginRequest request = LoginRequest.builder().bandera(2).username("carlos.h95").faceIdBiometrico(123L).build();
+
+        assertThrows(CredencialesInvalidasException.class, () -> authService.login(request));
+        verify(loginRepository, never()).save(any(LoginEntity.class));
+    }
+
+    @Test
+    @DisplayName("Un cliente dado de baja no puede iniciar sesión")
+    void testClienteInactivoNoInicia() {
+        usuarioEntity.setActivo(false);
+        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.verifyPassword("Password123!", "hashed_password_123")).thenReturn(true);
+
+        LoginRequest request = LoginRequest.builder().bandera(1).username("carlos.h95").password("Password123!").build();
+
+        assertThrows(CredencialesInvalidasException.class, () -> authService.login(request));
+        verify(loginRepository, never()).save(any(LoginEntity.class));
+    }
+
+    @Test
+    @DisplayName("El login exitoso devuelve un token Bearer con rol CLIENTE")
+    void testLoginDevuelveToken() {
+        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.verifyPassword("Password123!", "hashed_password_123")).thenReturn(true);
+        when(jwtService.generarToken(any())).thenReturn("token.jwt.firmado");
+        when(jwtService.getExpiracionSegundos()).thenReturn(1800L);
+
+        LoginResponse response = authService.login(
+                LoginRequest.builder().bandera(1).username("carlos.h95").password("Password123!").build());
+
+        assertEquals("token.jwt.firmado", response.getToken());
+        assertEquals("Bearer", response.getTipoToken());
+        assertEquals("CLIENTE", response.getRol());
+        assertEquals(1L, response.getUsuarioId());
+        verify(jwtService).generarToken(new com.proyecto.servicios.security.UsuarioAutenticado(
+                1L, "carlos.h95", com.proyecto.servicios.enums.RolEnum.CLIENTE));
+    }
+
+    @Test
+    @DisplayName("El ejecutivo configurado obtiene un token con rol EJECUTIVO")
+    void testLoginEjecutivo() {
+        ReflectionTestUtils.setField(authService, "ejecutivoUsuario", "ejecutivo");
+        ReflectionTestUtils.setField(authService, "ejecutivoPassword", "ClaveEjecutivo#2026");
+        when(jwtService.generarToken(any())).thenReturn("token.ejecutivo");
+
+        LoginResponse response = authService.login(
+                LoginRequest.builder().bandera(1).username("Ejecutivo").password("ClaveEjecutivo#2026").build());
+
+        assertEquals("EJECUTIVO", response.getRol());
+        assertEquals("token.ejecutivo", response.getToken());
+        assertThrows(CredencialesInvalidasException.class, () -> authService.login(
+                LoginRequest.builder().bandera(1).username("ejecutivo").password("otra").build()));
+        verifyNoInteractions(loginRepository);
+    }
+
+    @Test
+    @DisplayName("Un token de una sesión cerrada (logout) deja de ser aceptado")
+    void testValidarSesionTokenCerrada() {
+        loginEntity.setSesionActiva(false);
+        when(loginRepository.findConUsuarioByUsuarioId(1L)).thenReturn(Optional.of(loginEntity));
+
+        assertThrows(SesionExpiradaException.class, () -> authService.validarSesionToken(1L));
+    }
+
+    @Test
+    @DisplayName("Un token de una sesión activa renueva la última actividad")
+    void testValidarSesionTokenActiva() {
+        loginEntity.setSesionActiva(true);
+        when(loginRepository.findConUsuarioByUsuarioId(1L)).thenReturn(Optional.of(loginEntity));
+
+        assertDoesNotThrow(() -> authService.validarSesionToken(1L));
         verify(loginRepository).save(loginEntity);
     }
 }

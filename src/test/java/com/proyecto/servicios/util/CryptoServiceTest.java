@@ -66,4 +66,28 @@ class CryptoServiceTest {
         assertNull(cryptoService.encryptBiometrics(null));
         assertNull(cryptoService.decryptBiometrics(null));
     }
+
+    @Test
+    @DisplayName("Las contraseñas se guardan con BCrypt (sal aleatoria) y los hashes SHA-256 heredados se siguen validando")
+    void testBcryptYMigracionLegacy() {
+        String hash1 = cryptoService.hashPassword("PasswordSeguro2026!");
+        String hash2 = cryptoService.hashPassword("PasswordSeguro2026!");
+        assertTrue(hash1.startsWith("$2"));
+        assertNotEquals(hash1, hash2);
+        assertFalse(cryptoService.requiereMigracionHash(hash1));
+
+        // SHA-256 hexadecimal de "abc" (formato anterior)
+        String legacy = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        assertTrue(cryptoService.verifyPassword("abc", legacy));
+        assertFalse(cryptoService.verifyPassword("abd", legacy));
+        assertTrue(cryptoService.requiereMigracionHash(legacy));
+    }
+
+    @Test
+    @DisplayName("Debe rechazar contraseñas de más de 72 bytes (límite de BCrypt)")
+    void testPasswordDemasiadoLarga() {
+        String larga = "A1!" + "x".repeat(80);
+        assertThrows(com.proyecto.servicios.exception.ValidacionNegocioException.class, () -> cryptoService.hashPassword(larga));
+        assertFalse(cryptoService.verifyPassword(larga, cryptoService.hashPassword("Corta123!")));
+    }
 }

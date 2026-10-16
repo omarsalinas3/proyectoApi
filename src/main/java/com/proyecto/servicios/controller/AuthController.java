@@ -1,8 +1,11 @@
 package com.proyecto.servicios.controller;
 
+import com.proyecto.servicios.exception.AccesoDenegadoException;
 import com.proyecto.servicios.exception.ErrorResponse;
 import com.proyecto.servicios.model.cliente.request.LoginRequest;
 import com.proyecto.servicios.model.cliente.response.LoginResponse;
+import com.proyecto.servicios.security.ControlAcceso;
+import com.proyecto.servicios.security.UsuarioAutenticado;
 import com.proyecto.servicios.service.AuthService;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,6 +37,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final ControlAcceso controlAcceso;
 
     @Operation(
             summary = "Inicio de sesión de usuario (Bandera 1 = Contraseña, Bandera 2 = Biométrico Face ID)",
@@ -68,19 +72,37 @@ public class AuthController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+    /**
+     * Verifica la sesión del usuario dueño del token. El parámetro {@code usuario} es opcional y, si se envía,
+     * debe coincidir con el usuario del token (no se permite consultar sesiones de terceros).
+     */
     @Hidden
     @GetMapping(value = "/sesion/verificar", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<LoginResponse> verificarSesion(
-            @RequestParam String usuario,
+            @RequestParam(required = false) String usuario,
             @RequestParam(required = false) Integer timeoutDinamico) {
-        LoginResponse response = authService.verificarEstadoSesion(usuario, timeoutDinamico);
+        UsuarioAutenticado actual = usuarioDelToken(usuario);
+        LoginResponse response = authService.verificarEstadoSesion(actual, timeoutDinamico);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+    /**
+     * Cierra la sesión del usuario dueño del token; a partir de ese momento el token deja de ser aceptado.
+     */
     @Hidden
     @PostMapping(value = "/logout", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<LoginResponse> logout(@RequestParam String usuario) {
-        LoginResponse response = authService.logout(usuario);
+    public ResponseEntity<LoginResponse> logout(@RequestParam(required = false) String usuario) {
+        UsuarioAutenticado actual = usuarioDelToken(usuario);
+        LoginResponse response = authService.logout(actual);
         return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    private UsuarioAutenticado usuarioDelToken(String usuarioSolicitado) {
+        UsuarioAutenticado actual = controlAcceso.usuarioActual();
+        if (usuarioSolicitado != null && !usuarioSolicitado.isBlank()
+                && !usuarioSolicitado.trim().equalsIgnoreCase(actual.username())) {
+            throw new AccesoDenegadoException("Solo puede consultar o cerrar su propia sesión");
+        }
+        return actual;
     }
 }
