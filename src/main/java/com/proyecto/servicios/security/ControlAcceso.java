@@ -2,6 +2,8 @@ package com.proyecto.servicios.security;
 
 import com.proyecto.servicios.exception.AccesoDenegadoException;
 import com.proyecto.servicios.exception.NoAutenticadoException;
+import com.proyecto.servicios.model.cliente.request.ClienteBusquedaRequest;
+import com.proyecto.servicios.model.cliente.request.CuentaBusquedaRequest;
 import com.proyecto.servicios.model.cliente.response.ClienteResponse;
 import com.proyecto.servicios.service.ClienteService;
 import lombok.RequiredArgsConstructor;
@@ -78,13 +80,39 @@ public class ControlAcceso {
     }
 
     /**
-     * Restringe la operación al rol EJECUTIVO (consultas masivas de clientes y cuentas).
+     * Limita una búsqueda de clientes a lo que el usuario puede ver: el ejecutivo busca sin restricción y un
+     * cliente solo puede obtener su propio registro (si indica el id de otro cliente se rechaza con 403).
+     *
+     * @return los mismos filtros, con el id del cliente autenticado forzado cuando el rol es CLIENTE.
      */
-    public void validarRolEjecutivo() {
+    public ClienteBusquedaRequest limitarBusquedaClientes(ClienteBusquedaRequest filtros) {
         UsuarioAutenticado usuario = usuarioActual();
-        if (!usuario.esEjecutivo()) {
-            log.warn("Acceso denegado: el cliente {} intentó una consulta reservada para ejecutivos", usuario.clienteId());
-            throw new AccesoDenegadoException("Esta consulta está reservada para ejecutivos de la institución");
+        if (usuario.esEjecutivo()) {
+            return filtros;
         }
+        if (filtros.getId() != null && !filtros.getId().equals(usuario.clienteId())) {
+            log.warn("Acceso denegado: el cliente {} intentó buscar al cliente {}", usuario.clienteId(), filtros.getId());
+            throw new AccesoDenegadoException("No tiene permisos para consultar la información de otros clientes");
+        }
+        filtros.setId(usuario.clienteId());
+        return filtros;
+    }
+
+    /**
+     * Limita una búsqueda de cuentas: un cliente solo puede obtener sus propias cuentas.
+     *
+     * @return los mismos filtros, con el titular forzado al cliente autenticado cuando el rol es CLIENTE.
+     */
+    public CuentaBusquedaRequest limitarBusquedaCuentas(CuentaBusquedaRequest filtros) {
+        UsuarioAutenticado usuario = usuarioActual();
+        if (usuario.esEjecutivo()) {
+            return filtros;
+        }
+        if (filtros.getClienteId() != null && !filtros.getClienteId().equals(usuario.clienteId())) {
+            log.warn("Acceso denegado: el cliente {} intentó buscar cuentas del cliente {}", usuario.clienteId(), filtros.getClienteId());
+            throw new AccesoDenegadoException("No tiene permisos para consultar cuentas de otros clientes");
+        }
+        filtros.setClienteId(usuario.clienteId());
+        return filtros;
     }
 }

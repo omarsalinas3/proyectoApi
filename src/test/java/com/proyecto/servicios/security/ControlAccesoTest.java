@@ -4,6 +4,8 @@ import com.proyecto.servicios.enums.RolEnum;
 import com.proyecto.servicios.exception.AccesoDenegadoException;
 import com.proyecto.servicios.exception.NoAutenticadoException;
 import com.proyecto.servicios.model.cliente.dto.CuentaDTO;
+import com.proyecto.servicios.model.cliente.request.ClienteBusquedaRequest;
+import com.proyecto.servicios.model.cliente.request.CuentaBusquedaRequest;
 import com.proyecto.servicios.model.cliente.response.ClienteResponse;
 import com.proyecto.servicios.service.ClienteService;
 import com.proyecto.servicios.util.PatronesValidacion;
@@ -97,12 +99,35 @@ class ControlAccesoTest {
     }
 
     @Test
-    @DisplayName("Las consultas masivas están reservadas para el ejecutivo")
-    void consultasMasivasSoloEjecutivo() {
+    @DisplayName("La búsqueda de un cliente se limita a su propio id; buscar el id de otro devuelve 403")
+    void busquedaClientesLimitadaAlPropio() {
         autenticar(1L, RolEnum.CLIENTE);
-        assertThrows(AccesoDenegadoException.class, () -> controlAcceso.validarRolEjecutivo());
 
+        ClienteBusquedaRequest sinId = ClienteBusquedaRequest.builder().nombre("carlos").build();
+        assertEquals(1L, controlAcceso.limitarBusquedaClientes(sinId).getId());
+        assertEquals("carlos", sinId.getNombre());
+
+        ClienteBusquedaRequest ajeno = ClienteBusquedaRequest.builder().id(2L).build();
+        assertThrows(AccesoDenegadoException.class, () -> controlAcceso.limitarBusquedaClientes(ajeno));
+    }
+
+    @Test
+    @DisplayName("La búsqueda de cuentas de un cliente se limita a sus propias cuentas")
+    void busquedaCuentasLimitadaAlPropio() {
+        autenticar(1L, RolEnum.CLIENTE);
+
+        assertEquals(1L, controlAcceso.limitarBusquedaCuentas(CuentaBusquedaRequest.builder().estatus("ACTIVA").build()).getClienteId());
+        assertThrows(AccesoDenegadoException.class,
+                () -> controlAcceso.limitarBusquedaCuentas(CuentaBusquedaRequest.builder().clienteId(2L).build()));
+    }
+
+    @Test
+    @DisplayName("El ejecutivo busca sin restricciones")
+    void ejecutivoBuscaSinRestricciones() {
         autenticar(null, RolEnum.EJECUTIVO);
-        assertDoesNotThrow(() -> controlAcceso.validarRolEjecutivo());
+
+        ClienteBusquedaRequest todos = ClienteBusquedaRequest.builder().build();
+        assertNull(controlAcceso.limitarBusquedaClientes(todos).getId());
+        assertEquals(2L, controlAcceso.limitarBusquedaCuentas(CuentaBusquedaRequest.builder().clienteId(2L).build()).getClienteId());
     }
 }

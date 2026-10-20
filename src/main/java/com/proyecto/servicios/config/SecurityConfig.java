@@ -22,7 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * <ul>
  *   <li>API sin estado (sin sesión HTTP ni CSRF): cada petición se autentica con un token JWT.</li>
  *   <li>Públicos: login, registro de clientes (onboarding), documentación Swagger y health check.</li>
- *   <li>Consultas masivas (todos los clientes, rango de fechas, cuentas activas): solo rol EJECUTIVO.</li>
+ *   <li>Las búsquedas de clientes y cuentas requieren token; un CLIENTE solo obtiene sus propios registros.</li>
  *   <li>Todo lo demás requiere token; la propiedad de cada registro se valida en {@code ControlAcceso}.</li>
  * </ul>
  *
@@ -63,8 +63,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                         // Onboarding: alta de clientes. Las banderas 2 y 3 de layaway exigen token en el controlador.
                         .requestMatchers(HttpMethod.POST, "/api/v1/clientes", "/api/v1/layaway/cliente").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/clientes", "/api/v1/clientes/rango-fechas",
-                                "/api/v1/cuentas/activas").hasRole(ejecutivo)
                         .requestMatchers("/personas", "/personasActualiza", "/personasElimina").hasRole(ejecutivo)
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService, authService),

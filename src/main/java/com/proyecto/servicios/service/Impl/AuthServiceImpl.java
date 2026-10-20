@@ -2,7 +2,6 @@ package com.proyecto.servicios.service.Impl;
 
 import com.proyecto.servicios.entity.cliente.LoginEntity;
 import com.proyecto.servicios.entity.cliente.UsuarioEntity;
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.enums.RolEnum;
 import com.proyecto.servicios.exception.CredencialesInvalidasException;
 import com.proyecto.servicios.exception.SesionExpiradaException;
@@ -134,9 +133,6 @@ public class AuthServiceImpl implements AuthService {
         log.info("Inicio de sesión exitoso para usuario: {}. Sesión activa = true", rawUsername);
 
         return LoginResponse.builder()
-                .codigoRespuesta(CodigoRespuestaEnum.EXITO)
-                .codigo(0)
-                .mensaje("Inicio de sesión exitoso (Bandera " + bandera + ")")
                 .usuarioId(clienteId)
                 .username(rawUsername)
                 .rol(RolEnum.CLIENTE.name())
@@ -163,7 +159,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public LoginResponse verificarEstadoSesion(UsuarioAutenticado usuario, Integer tiempoInactividadSegundos) {
         if (usuario.esEjecutivo()) {
-            return respuestaEjecutivo("Sesión de ejecutivo vigente (válida hasta la expiración del token)", true);
+            return respuestaEjecutivo(true);
         }
         LoginEntity loginEntity = loginRepository.findByUsuarioId(usuario.clienteId())
                 .orElseThrow(() -> new CredencialesInvalidasException(MENSAJE_CREDENCIALES_INVALIDAS));
@@ -183,7 +179,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public LoginResponse logout(UsuarioAutenticado usuario) {
         if (usuario.esEjecutivo()) {
-            return respuestaEjecutivo("Cierre de sesión registrado; descarte el token en el cliente", false);
+            return respuestaEjecutivo(false);
         }
         log.info("Cerrando sesión para usuario: {}", usuario.username());
         LoginEntity loginEntity = loginRepository.findByUsuarioId(usuario.clienteId())
@@ -265,9 +261,6 @@ public class AuthServiceImpl implements AuthService {
         long segundosRestantes = Math.max(0, limiteSegundos - segundosInactivo);
 
         return LoginResponse.builder()
-                .codigoRespuesta(CodigoRespuestaEnum.EXITO)
-                .codigo(0)
-                .mensaje("Sesión activa y vigente")
                 .usuarioId(loginEntity.getUsuario() != null ? loginEntity.getUsuario().getId() : null)
                 .username(username)
                 .rol(RolEnum.CLIENTE.name())
@@ -284,9 +277,6 @@ public class AuthServiceImpl implements AuthService {
         log.info("Sesión cerrada exitosamente para usuario: {}", username);
 
         return LoginResponse.builder()
-                .codigoRespuesta(CodigoRespuestaEnum.EXITO)
-                .codigo(0)
-                .mensaje("Cierre de sesión exitoso")
                 .usuarioId(loginEntity.getUsuario() != null ? loginEntity.getUsuario().getId() : null)
                 .username(username)
                 .sesionActiva(false)
@@ -327,18 +317,15 @@ public class AuthServiceImpl implements AuthService {
         String token = jwtService.generarToken(new UsuarioAutenticado(null, ejecutivoUsuario, RolEnum.EJECUTIVO));
         log.info("Inicio de sesión exitoso para el ejecutivo: {}", ejecutivoUsuario);
 
-        LoginResponse response = respuestaEjecutivo("Inicio de sesión exitoso (Ejecutivo)", true);
+        LoginResponse response = respuestaEjecutivo(true);
         response.setToken(token);
         response.setTipoToken(TIPO_TOKEN);
         response.setExpiraEnSegundos(jwtService.getExpiracionSegundos());
         return response;
     }
 
-    private LoginResponse respuestaEjecutivo(String mensaje, boolean sesionActiva) {
+    private LoginResponse respuestaEjecutivo(boolean sesionActiva) {
         return LoginResponse.builder()
-                .codigoRespuesta(CodigoRespuestaEnum.EXITO)
-                .codigo(0)
-                .mensaje(mensaje)
                 .username(ejecutivoUsuario)
                 .rol(RolEnum.EJECUTIVO.name())
                 .sesionActiva(sesionActiva)

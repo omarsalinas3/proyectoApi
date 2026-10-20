@@ -1,13 +1,16 @@
 package com.proyecto.servicios.model.cliente.request;
 
+import com.proyecto.servicios.model.common.RequestEstricto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.proyecto.servicios.model.cliente.dto.DomicilioDTO;
+import com.proyecto.servicios.util.PatronesValidacion;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
@@ -17,7 +20,8 @@ import java.math.BigDecimal;
  * Request DTO para la actualización de información de Clientes Personas Físicas.
  *
  * <p><strong>Restricción de Negocio:</strong>
- * No se permite modificar CURP, RFC ni Número de Cuenta.
+ * No se permite modificar CURP, RFC, número de cuenta, saldos, estatus ni fechas de registro: si la petición
+ * los incluye se rechaza con 400 (ver {@link RequestEstricto}).
  * </p>
  *
  * @author Equipo de Desarrollo
@@ -29,9 +33,15 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "Petición para modificar datos permitidos del cliente (sin CURP, RFC ni cuenta)")
-public class ClienteUpdateRequest implements Serializable {
+@EqualsAndHashCode(callSuper = false)
+public class ClienteUpdateRequest extends RequestEstricto implements Serializable {
 
     private static final long serialVersionUID = 1L;
+
+    @Schema(description = "Identificador del cliente a actualizar", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "El id del cliente es obligatorio")
+    @Positive(message = PatronesValidacion.MENSAJE_ID)
+    private Long id;
 
     @Schema(description = "Primer nombre del cliente", example = "Carlos")
     @NotBlank(message = "El nombre es obligatorio")

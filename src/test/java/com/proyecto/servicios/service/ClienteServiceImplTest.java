@@ -1,11 +1,17 @@
 package com.proyecto.servicios.service;
 
+import com.proyecto.servicios.model.cliente.request.ClienteBusquedaRequest;
+import com.proyecto.servicios.model.common.PaginaResponse;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import com.proyecto.servicios.entity.cliente.CuentaEntity;
 import com.proyecto.servicios.entity.cliente.DomicilioEntity;
 import com.proyecto.servicios.entity.cliente.LoginEntity;
 import com.proyecto.servicios.entity.cliente.SaldoEntity;
 import com.proyecto.servicios.entity.cliente.UsuarioEntity;
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.exception.ClienteNoEncontradoException;
 import com.proyecto.servicios.exception.CorreoDuplicadoException;
 import com.proyecto.servicios.exception.CurpDuplicadaException;
@@ -139,8 +145,7 @@ class ClienteServiceImplTest {
         ClienteResponse response = clienteService.registrarCliente(registroRequest);
 
         assertNotNull(response);
-        assertEquals(CodigoRespuestaEnum.EXITO, response.getCodigoRespuesta());
-        assertEquals(0, response.getCodigo());
+        assertEquals(1L, response.getId());
         verify(cuentaService).generarNumeroCuentaUnico();
         verify(usuarioRepository).save(any(UsuarioEntity.class));
     }
@@ -203,6 +208,7 @@ class ClienteServiceImplTest {
     @DisplayName("Debe actualizar información del cliente exitosamente")
     void testActualizarClienteExitoso() {
         ClienteUpdateRequest updateRequest = ClienteUpdateRequest.builder()
+                .id(1L)
                 .nombre("Carlos Eduardo")
                 .correo("carlos.nuevo@example.com")
                 .build();
@@ -214,10 +220,10 @@ class ClienteServiceImplTest {
         ClienteResponse responseMock = ClienteResponse.builder().id(1L).build();
         when(clienteMapper.entityToResponse(usuarioEntity)).thenReturn(responseMock);
 
-        ClienteResponse response = clienteService.actualizarCliente(1L, updateRequest);
+        ClienteResponse response = clienteService.actualizarCliente(updateRequest);
 
         assertNotNull(response);
-        assertEquals(CodigoRespuestaEnum.EXITO, response.getCodigoRespuesta());
+        assertEquals("carlos.nuevo@example.com", usuarioEntity.getCorreo());
         verify(usuarioRepository).save(usuarioEntity);
     }
 
@@ -254,7 +260,7 @@ class ClienteServiceImplTest {
         ClienteResponse response = clienteService.consultarPorId(1L);
 
         assertNotNull(response);
-        assertEquals(0, response.getCodigo());
+        assertEquals(1L, response.getId());
     }
 
     @Test
@@ -263,5 +269,28 @@ class ClienteServiceImplTest {
         when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ClienteNoEncontradoException.class, () -> clienteService.consultarPorId(99L));
+    }
+
+    @Test
+    @DisplayName("Debe buscar clientes combinando filtros y devolver el resultado paginado ordenado por id")
+    void testBuscarClientes() {
+        ClienteResponse responseMock = ClienteResponse.builder().id(1L).curp("HELC950815HDFRPR03").build();
+        when(usuarioRepository.findAll(org.mockito.ArgumentMatchers.<Specification<UsuarioEntity>>any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(usuarioEntity), PageRequest.of(1, 5), 6));
+        when(clienteMapper.entityToResponse(usuarioEntity)).thenReturn(responseMock);
+
+        ClienteBusquedaRequest filtros = ClienteBusquedaRequest.builder()
+                .curp("HELC950815HDFRPR03").activo(true).pagina(1).tamanio(5).build();
+        PaginaResponse<ClienteResponse> pagina = clienteService.buscar(filtros);
+
+        assertEquals(6, pagina.getTotalElementos());
+        assertEquals(2, pagina.getTotalPaginas());
+        assertEquals(1, pagina.getPagina());
+        assertEquals("HELC950815HDFRPR03", pagina.getContenido().get(0).getCurp());
+        ArgumentCaptor<Pageable> paginaCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(usuarioRepository).findAll(org.mockito.ArgumentMatchers.<Specification<UsuarioEntity>>any(), paginaCaptor.capture());
+        assertEquals(1, paginaCaptor.getValue().getPageNumber());
+        assertEquals(5, paginaCaptor.getValue().getPageSize());
+        assertTrue(paginaCaptor.getValue().getSort().getOrderFor("id").isAscending());
     }
 }

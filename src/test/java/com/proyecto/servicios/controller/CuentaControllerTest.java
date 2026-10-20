@@ -1,12 +1,16 @@
 package com.proyecto.servicios.controller;
 
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
+import com.proyecto.servicios.exception.AccesoDenegadoException;
 import com.proyecto.servicios.model.cliente.dto.CuentaDTO;
 import com.proyecto.servicios.model.cliente.dto.SaldoDTO;
+import com.proyecto.servicios.model.cliente.request.CuentaBusquedaRequest;
+import com.proyecto.servicios.model.cliente.request.CuentaSaldoRequest;
 import com.proyecto.servicios.model.cliente.response.CuentaResponse;
 import com.proyecto.servicios.model.cliente.response.SaldoResponse;
+import com.proyecto.servicios.model.common.PaginaResponse;
+import com.proyecto.servicios.model.common.RespuestaApi;
+import com.proyecto.servicios.security.ControlAcceso;
 import com.proyecto.servicios.service.CuentaService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +24,8 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,67 +36,53 @@ class CuentaControllerTest {
     private CuentaService cuentaService;
 
     @Mock
-    private com.proyecto.servicios.security.ControlAcceso controlAcceso;
+    private ControlAcceso controlAcceso;
 
     @InjectMocks
     private CuentaController cuentaController;
 
-    private CuentaResponse cuentaResponse;
-    private SaldoResponse saldoResponse;
-
-    @BeforeEach
-    void setUp() {
-        cuentaResponse = CuentaResponse.builder()
-                .codigoRespuesta(CodigoRespuestaEnum.EXITO)
-                .codigo(0)
-                .mensaje("Operación realizada con éxito")
+    @Test
+    @DisplayName("POST /api/v1/cuentas/buscar debe limitar los filtros al usuario y devolver la página")
+    void testBuscarCuentas() {
+        CuentaBusquedaRequest filtros = CuentaBusquedaRequest.builder().estatus("ACTIVA").build();
+        CuentaResponse cuenta = CuentaResponse.builder()
                 .titular("Carlos Hernández López")
-                .curpTitular("HELC950815HDFRPR03")
                 .cuenta(CuentaDTO.builder().numeroCuenta("1234567890123456").estatus("ACTIVA").build())
                 .build();
+        when(controlAcceso.limitarBusquedaCuentas(filtros)).thenReturn(filtros);
+        when(cuentaService.buscar(filtros)).thenReturn(PaginaResponse.<CuentaResponse>builder()
+                .contenido(List.of(cuenta)).pagina(0).tamanio(20).totalElementos(1).totalPaginas(1).build());
 
-        saldoResponse = SaldoResponse.builder()
-                .codigoRespuesta(CodigoRespuestaEnum.EXITO)
-                .codigo(0)
-                .mensaje("Saldo consultado")
+        ResponseEntity<RespuestaApi<PaginaResponse<CuentaResponse>>> response = cuentaController.buscarCuentas(filtros);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(0, response.getBody().getCodigo());
+        assertEquals("1234567890123456", response.getBody().getDatos().getContenido().get(0).getCuenta().getNumeroCuenta());
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/cuentas/saldo debe devolver el saldo de la cuenta propia")
+    void testConsultarSaldo() {
+        SaldoResponse saldo = SaldoResponse.builder()
                 .saldo(SaldoDTO.builder().saldoDisponible(BigDecimal.ZERO).moneda("MXN").build())
                 .build();
+        when(cuentaService.consultarSaldoPorNumeroCuenta("1234567890123456")).thenReturn(saldo);
+
+        ResponseEntity<RespuestaApi<SaldoResponse>> response =
+                cuentaController.consultarSaldo(CuentaSaldoRequest.builder().numeroCuenta("1234567890123456").build());
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("MXN", response.getBody().getDatos().getSaldo().getMoneda());
+        verify(controlAcceso).validarRecursoPropio(any(), eq("la cuenta"));
     }
 
     @Test
-    @DisplayName("GET /api/v1/cuentas/{numeroCuenta} debe retornar detalle de la cuenta")
-    void testConsultarPorNumeroCuenta() {
-        when(cuentaService.consultarPorNumeroCuenta("1234567890123456")).thenReturn(cuentaResponse);
+    @DisplayName("POST /api/v1/cuentas/saldo de una cuenta ajena no debe consultar el saldo")
+    void testConsultarSaldoAjeno() {
+        doThrow(new AccesoDenegadoException("sin permiso")).when(controlAcceso).validarRecursoPropio(any(), eq("la cuenta"));
 
-        ResponseEntity<CuentaResponse> response = cuentaController.consultarPorNumeroCuenta("1234567890123456");
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(0, response.getBody().getCodigo());
-        assertEquals("Carlos Hernández López", response.getBody().getTitular());
-    }
-
-    @Test
-    @DisplayName("GET /api/v1/cuentas/activas debe retornar listado de cuentas activas")
-    void testConsultarCuentasActivas() {
-        when(cuentaService.consultarCuentasActivas()).thenReturn(List.of(cuentaResponse));
-
-        ResponseEntity<List<CuentaResponse>> response = cuentaController.consultarCuentasActivas();
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(1, response.getBody().size());
-    }
-
-    @Test
-    @DisplayName("GET /api/v1/cuentas/{numeroCuenta}/saldo debe retornar saldo de la cuenta")
-    void testConsultarSaldo() {
-        when(cuentaService.consultarSaldoPorNumeroCuenta("1234567890123456")).thenReturn(saldoResponse);
-
-        ResponseEntity<SaldoResponse> response = cuentaController.consultarSaldoPorNumeroCuenta("1234567890123456");
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(0, response.getBody().getCodigo());
+        assertThrows(AccesoDenegadoException.class, () ->
+                cuentaController.consultarSaldo(CuentaSaldoRequest.builder().numeroCuenta("9999999999999999").build()));
+        verifyNoInteractions(cuentaService);
     }
 }

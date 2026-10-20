@@ -1,45 +1,39 @@
 package com.proyecto.servicios.service;
 
+import com.proyecto.servicios.model.cliente.request.CuentaBusquedaRequest;
 import com.proyecto.servicios.model.cliente.response.CuentaResponse;
 import com.proyecto.servicios.model.cliente.response.SaldoResponse;
-
-import java.util.List;
+import com.proyecto.servicios.model.common.PaginaResponse;
 
 /**
- * Interfaz de servicio para operaciones sobre cuentas bancarias asociadas a clientes.
+ * Interfaz de servicio para la consulta de Cuentas Bancarias y Saldos.
  *
  * @author Equipo de Desarrollo
- * @version 1.0
+ * @version 2.0
  */
 public interface CuentaService {
 
     /**
-     * Consulta el detalle de una cuenta bancaria por su número de cuenta de 16 dígitos.
+     * Busca cuentas combinando los filtros informados (número de cuenta, titular y estatus).
      *
-     * @param numeroCuenta número de cuenta único de 16 dígitos.
-     * @return respuesta con los detalles de la cuenta.
+     * @param filtros criterios de búsqueda y paginación.
+     * @return página de cuentas que cumplen los filtros.
      */
-    CuentaResponse consultarPorNumeroCuenta(String numeroCuenta);
+    PaginaResponse<CuentaResponse> buscar(CuentaBusquedaRequest filtros);
 
     /**
-     * Consulta todas las cuentas bancarias que se encuentran en estado ACTIVA.
-     *
-     * @return lista de respuestas de cuentas activas.
-     */
-    List<CuentaResponse> consultarCuentasActivas();
-
-    /**
-     * Consulta el saldo disponible y contable de una cuenta por su número de cuenta.
+     * Consulta el saldo de una cuenta.
      *
      * @param numeroCuenta número de cuenta de 16 dígitos.
-     * @return respuesta detallada del saldo.
+     * @return desglose de saldos.
+     * @throws com.proyecto.servicios.exception.CuentaNoEncontradaException si la cuenta no existe.
      */
     SaldoResponse consultarSaldoPorNumeroCuenta(String numeroCuenta);
 
     /**
-     * Genera un número de cuenta único de 16 dígitos asegurando no colisión en la base de datos.
+     * Genera un número de cuenta de 16 dígitos que no exista en la base de datos.
      *
-     * @return número de cuenta generado de 16 dígitos numéricos.
+     * @return número de cuenta único.
      */
     String generarNumeroCuentaUnico();
 }

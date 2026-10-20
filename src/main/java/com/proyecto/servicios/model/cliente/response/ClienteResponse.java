@@ -2,8 +2,6 @@ package com.proyecto.servicios.model.cliente.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.model.cliente.dto.CuentaDTO;
 import com.proyecto.servicios.model.cliente.dto.DomicilioDTO;
 import com.proyecto.servicios.model.cliente.dto.SaldoDTO;
@@ -32,18 +30,6 @@ import java.time.LocalDate;
 public class ClienteResponse implements Serializable {
 
     private static final long serialVersionUID = 1L;
-
-    @Schema(description = "Código de respuesta estandarizado (0 = EXITO)", example = "EXITO")
-    @JsonProperty("codigoRespuesta")
-    private CodigoRespuestaEnum codigoRespuesta;
-
-    @Schema(description = "Código numérico de resultado (0 = Éxito)", example = "0")
-    @JsonProperty("codigo")
-    private Integer codigo;
-
-    @Schema(description = "Mensaje descriptivo del resultado", example = "Cliente consultado exitosamente")
-    @JsonProperty("mensaje")
-    private String mensaje;
 
     @Schema(description = "Identificador único interno del cliente", example = "1")
     private Long id;

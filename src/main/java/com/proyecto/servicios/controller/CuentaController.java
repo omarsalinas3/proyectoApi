@@ -1,113 +1,82 @@
 package com.proyecto.servicios.controller;
 
-import com.proyecto.servicios.exception.ErrorResponse;
+import com.proyecto.servicios.model.cliente.request.CuentaBusquedaRequest;
+import com.proyecto.servicios.model.cliente.request.CuentaSaldoRequest;
 import com.proyecto.servicios.model.cliente.response.CuentaResponse;
 import com.proyecto.servicios.model.cliente.response.SaldoResponse;
+import com.proyecto.servicios.model.common.PaginaResponse;
+import com.proyecto.servicios.model.common.RespuestaApi;
 import com.proyecto.servicios.security.ControlAcceso;
 import com.proyecto.servicios.service.CuentaService;
 import com.proyecto.servicios.util.PatronesValidacion;
-import jakarta.validation.constraints.Pattern;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controlador REST para la consulta de cuentas bancarias y verificación de saldos.
- *
- * <p><strong>Endpoints expuestos:</strong>
- * <ul>
- *   <li>{@code GET /api/v1/cuentas/{numeroCuenta}} - Consulta el detalle de una cuenta por su número de 16 dígitos.</li>
- *   <li>{@code GET /api/v1/cuentas/activas} - Listado de todas las cuentas bancarias en estado ACTIVA.</li>
- *   <li>{@code GET /api/v1/cuentas/{numeroCuenta}/saldo} - Consulta de saldos contables y disponibles de la cuenta.</li>
- * </ul>
- * </p>
+ * Controlador REST para la consulta de cuentas bancarias y saldos. Los criterios se reciben en el cuerpo.
  *
  * @author Equipo de Desarrollo
- * @version 1.0
+ * @version 2.0
  */
 @Slf4j
-@io.swagger.v3.oas.annotations.Hidden
 @RestController
 @RequestMapping("/api/v1/cuentas")
 @RequiredArgsConstructor
-@Tag(name = "Cuentas y Saldos", description = "Controlador para la gestión y consulta de Cuentas Bancarias y Saldos")
+@Tag(name = "Cuentas y Saldos", description = "Búsqueda de cuentas bancarias y consulta de saldo")
+@ApiResponses({
+        @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos (detalle por campo en 'errores')",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class))),
+        @ApiResponse(responseCode = "401", description = "Falta el token Bearer o es inválido/expirado",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class))),
+        @ApiResponse(responseCode = "403", description = "La cuenta no pertenece al cliente autenticado",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class)))
+})
 public class CuentaController {
 
     private final CuentaService cuentaService;
     private final ControlAcceso controlAcceso;
 
-    @Operation(summary = "Consultar cuenta por número de 16 dígitos", description = "Recupera los datos de la cuenta bancaria y su titular.")
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Cuenta bancaria encontrada",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = CuentaResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Cuenta no encontrada",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
-            )
-    })
-    @GetMapping(value = "/{numeroCuenta}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<CuentaResponse> consultarPorNumeroCuenta(
-            @Parameter(description = "Número de cuenta de 16 dígitos", example = "1234567890123456")
-            @Pattern(regexp = PatronesValidacion.NUMERO_CUENTA, message = PatronesValidacion.MENSAJE_NUMERO_CUENTA)
-            @PathVariable String numeroCuenta) {
-        log.info("Petición GET /api/v1/cuentas/{}", numeroCuenta);
-        controlAcceso.validarRecursoPropio(c -> PatronesValidacion.esCuentaDe(c, numeroCuenta), "la cuenta");
-        CuentaResponse response = cuentaService.consultarPorNumeroCuenta(numeroCuenta);
-        return new ResponseEntity<>(response, HttpStatus.OK);
-    }
-
-    @Operation(summary = "Consultar cuentas activas", description = "Retorna el listado de todas las cuentas bancarias actualmente activas en el sistema.")
-    @ApiResponse(
-            responseCode = "200",
-            description = "Listado de cuentas activas",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = CuentaResponse.class)))
+    @Operation(
+            summary = "Buscar cuentas por criterios combinables",
+            description = "Filtros opcionales combinables: numeroCuenta, clienteId y estatus (ACTIVA o CANCELADA). "
+                    + "Ej. {\"estatus\": \"ACTIVA\"} para cuentas activas. Un CLIENTE solo obtiene sus propias cuentas."
     )
-    @GetMapping(value = "/activas", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<CuentaResponse>> consultarCuentasActivas() {
-        log.info("Petición GET /api/v1/cuentas/activas");
-        controlAcceso.validarRolEjecutivo();
-        List<CuentaResponse> response = cuentaService.consultarCuentasActivas();
-        return new ResponseEntity<>(response, HttpStatus.OK);
+    @ApiResponse(responseCode = "200", description = "Página de cuentas que cumplen los filtros (puede estar vacía)")
+    @PostMapping(value = "/buscar", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<RespuestaApi<PaginaResponse<CuentaResponse>>> buscarCuentas(@Valid @RequestBody CuentaBusquedaRequest request) {
+        log.info("Petición POST /api/v1/cuentas/buscar");
+        PaginaResponse<CuentaResponse> pagina = cuentaService.buscar(controlAcceso.limitarBusquedaCuentas(request));
+        String mensaje = pagina.getTotalElementos() == 0
+                ? "No se encontraron cuentas con los criterios indicados"
+                : String.format("Se encontraron %d cuenta(s)", pagina.getTotalElementos());
+        return ResponseEntity.ok(RespuestaApi.exito(mensaje, pagina));
     }
 
-    @Operation(summary = "Consultar saldo de cuenta", description = "Obtiene el desglose de saldos (disponible, contable, bloqueado, pendiente) de la cuenta.")
+    @Operation(summary = "Consultar saldo de una cuenta", description = "Devuelve el desglose de saldos de la cuenta indicada en el cuerpo.")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Saldo de cuenta consultado exitosamente",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = SaldoResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Cuenta o registro de saldos no encontrado",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
-            )
+            @ApiResponse(responseCode = "200", description = "Saldo consultado"),
+            @ApiResponse(responseCode = "404", description = "Cuenta no encontrada (solo visible para el ejecutivo)",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class)))
     })
-    @GetMapping(value = "/{numeroCuenta}/saldo", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<SaldoResponse> consultarSaldoPorNumeroCuenta(
-            @Parameter(description = "Número de cuenta de 16 dígitos", example = "1234567890123456")
-            @Pattern(regexp = PatronesValidacion.NUMERO_CUENTA, message = PatronesValidacion.MENSAJE_NUMERO_CUENTA)
-            @PathVariable String numeroCuenta) {
-        log.info("Petición GET /api/v1/cuentas/{}/saldo", numeroCuenta);
+    @PostMapping(value = "/saldo", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<RespuestaApi<SaldoResponse>> consultarSaldo(@Valid @RequestBody CuentaSaldoRequest request) {
+        log.info("Petición POST /api/v1/cuentas/saldo");
+        String numeroCuenta = request.getNumeroCuenta();
         controlAcceso.validarRecursoPropio(c -> PatronesValidacion.esCuentaDe(c, numeroCuenta), "la cuenta");
-        SaldoResponse response = cuentaService.consultarSaldoPorNumeroCuenta(numeroCuenta);
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        SaldoResponse saldo = cuentaService.consultarSaldoPorNumeroCuenta(numeroCuenta);
+        return ResponseEntity.ok(RespuestaApi.exito("Saldo consultado exitosamente", saldo));
     }
 }

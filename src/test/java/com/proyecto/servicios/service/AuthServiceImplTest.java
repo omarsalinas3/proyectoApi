@@ -2,7 +2,6 @@ package com.proyecto.servicios.service;
 
 import com.proyecto.servicios.entity.cliente.LoginEntity;
 import com.proyecto.servicios.entity.cliente.UsuarioEntity;
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.exception.CredencialesInvalidasException;
 import com.proyecto.servicios.exception.SesionExpiradaException;
 import com.proyecto.servicios.model.cliente.request.LoginRequest;
@@ -91,8 +90,7 @@ class AuthServiceImplTest {
         LoginResponse response = authService.login(request);
 
         assertNotNull(response);
-        assertEquals(CodigoRespuestaEnum.EXITO, response.getCodigoRespuesta());
-        assertEquals(0, response.getCodigo());
+        assertEquals(1L, response.getUsuarioId());
         assertTrue(response.getSesionActiva());
         assertEquals("carlos.h95", response.getUsername());
         assertEquals(300, response.getTiempoInactividadSegundos());
@@ -160,7 +158,7 @@ class AuthServiceImplTest {
 
         assertNotNull(response);
         assertFalse(response.getSesionActiva());
-        assertEquals(0, response.getCodigo());
+        assertEquals(1L, response.getUsuarioId());
         verify(loginRepository).save(loginEntity);
     }
 

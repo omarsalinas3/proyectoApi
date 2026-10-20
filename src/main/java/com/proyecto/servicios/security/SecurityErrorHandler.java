@@ -2,7 +2,7 @@ package com.proyecto.servicios.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.proyecto.servicios.enums.CodigoRespuestaEnum;
-import com.proyecto.servicios.exception.ErrorResponse;
+import com.proyecto.servicios.model.common.RespuestaApi;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -19,10 +19,9 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 
 /**
- * Respuestas JSON estandarizadas ({@link ErrorResponse}) para los rechazos de Spring Security:
+ * Respuestas JSON estandarizadas ({@link RespuestaApi}) para los rechazos de Spring Security:
  * 401 cuando falta o es inválido el token, 403 cuando el rol no permite el recurso y 400 cuando el firewall
  * rechaza una URL maliciosa o mal formada (ej. {@code //}, {@code ..}, caracteres codificados peligrosos).
  *
@@ -60,18 +59,12 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
             throws IOException {
         log.warn("URL rechazada por el firewall: {}", ex.getMessage());
         escribir(response, HttpStatus.BAD_REQUEST, CodigoRespuestaEnum.ERROR_PARAMETRO_INVALIDO,
-                "La URL contiene segmentos vacíos o caracteres no permitidos; revise que todos los parámetros de ruta estén informados");
+                "La URL contiene segmentos vacíos o caracteres no permitidos");
     }
 
     private void escribir(HttpServletResponse response, HttpStatus status, CodigoRespuestaEnum codigo, String detalle)
             throws IOException {
-        ErrorResponse error = ErrorResponse.builder()
-                .codigoRespuesta(codigo)
-                .codigo(codigo.getCodigo())
-                .mensaje(codigo.getDescripcion())
-                .detalle(detalle)
-                .timestamp(LocalDateTime.now())
-                .build();
+        RespuestaApi<Void> error = RespuestaApi.error(codigo, detalle);
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

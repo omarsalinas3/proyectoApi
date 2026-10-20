@@ -68,9 +68,6 @@ public interface ClienteMapper {
     /**
      * Mapea una entidad {@link UsuarioEntity} hacia el response {@link ClienteResponse}.
      */
-    @Mapping(target = "codigoRespuesta", ignore = true)
-    @Mapping(target = "codigo", ignore = true)
-    @Mapping(target = "mensaje", ignore = true)
     @Mapping(target = "nombreCompleto", expression = "java(construirNombreCompleto(entity))")
     @Mapping(target = "domicilio", source = "domicilio")
     @Mapping(target = "cuenta", source = "cuenta")
@@ -85,9 +82,6 @@ public interface ClienteMapper {
     /**
      * Mapea una entidad de cuenta a CuentaResponse.
      */
-    @Mapping(target = "codigoRespuesta", ignore = true)
-    @Mapping(target = "codigo", ignore = true)
-    @Mapping(target = "mensaje", ignore = true)
     @Mapping(target = "titular", expression = "java(construirNombreCompleto(entity.getUsuario()))")
     @Mapping(target = "curpTitular", source = "usuario.curp")
     @Mapping(target = "cuenta", source = "entity")
@@ -96,9 +90,6 @@ public interface ClienteMapper {
     /**
      * Mapea una entidad de saldo a SaldoResponse.
      */
-    @Mapping(target = "codigoRespuesta", ignore = true)
-    @Mapping(target = "codigo", ignore = true)
-    @Mapping(target = "mensaje", ignore = true)
     @Mapping(target = "saldo", source = "entity")
     SaldoResponse toSaldoResponse(SaldoEntity entity);
 

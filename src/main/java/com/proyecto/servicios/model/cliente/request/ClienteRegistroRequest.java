@@ -1,5 +1,6 @@
 package com.proyecto.servicios.model.cliente.request;
 
+import com.proyecto.servicios.model.common.RequestEstricto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.proyecto.servicios.model.cliente.dto.DomicilioDTO;
@@ -9,6 +10,7 @@ import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
@@ -27,7 +29,8 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "Petición de registro de cliente persona física con validaciones de negocio")
-public class ClienteRegistroRequest implements Serializable {
+@EqualsAndHashCode(callSuper = false)
+public class ClienteRegistroRequest extends RequestEstricto implements Serializable {
 
     private static final long serialVersionUID = 1L;
 

@@ -1,5 +1,6 @@
 package com.proyecto.servicios.model.cliente.dto;
 
+import com.proyecto.servicios.model.common.RequestEstricto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -8,6 +9,7 @@ import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
@@ -24,7 +26,8 @@ import java.io.Serializable;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "Datos estructurados de domicilio del cliente")
-public class DomicilioDTO implements Serializable {
+@EqualsAndHashCode(callSuper = false)
+public class DomicilioDTO extends RequestEstricto implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
