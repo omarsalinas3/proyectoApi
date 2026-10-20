@@ -109,6 +109,7 @@ expect "sin coincidencias: mensaje" "$(J mensaje)" "No se encontraron clientes c
 check "filtros inválidos" 400 POST /api/v1/clientes/buscar "$TE" '{"id":0,"curp":"XYZ","numeroCuenta":"12ab","tamanio":500}'
 check "rango de fechas invertido" 400 POST /api/v1/clientes/buscar "$TE" '{"fechaRegistroDesde":"2026-06-30","fechaRegistroHasta":"2026-01-01"}'
 check "fecha con formato inválido" 400 POST /api/v1/clientes/buscar "$TE" '{"fechaRegistroDesde":"2026-13-45"}'
+expect "fecha inválida: campo y formato esperado" "$(J errores.fechaRegistroDesde)" "Debe ser una fecha con formato YYYY-MM-DD"
 check "filtro inexistente" 400 POST /api/v1/clientes/buscar "$TE" '{"edad":30}'
 check "cliente: búsqueda sin filtros = solo su registro" 200 POST /api/v1/clientes/buscar "$TA" '{}'
 expect "cliente solo ve su registro" "$(J datos.totalElementos):$(J 'datos.contenido[0].id')" "1:$ANA_ID"

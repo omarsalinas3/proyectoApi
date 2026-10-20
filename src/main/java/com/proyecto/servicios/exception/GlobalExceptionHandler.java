@@ -107,7 +107,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<RespuestaApi<Void>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
-        Throwable causa = ex.getMostSpecificCause();
+        // Se usa la excepción de Jackson (no la causa más profunda, que puede ser p. ej. DateTimeParseException)
+        // porque es la que conoce el campo y el tipo esperado.
+        Throwable causa = excepcionJson(ex);
         String detalle;
         Map<String, String> errores = null;
 
@@ -339,6 +341,15 @@ public class GlobalExceptionHandler {
             nombre = nodo.getName();
         }
         return nombre != null ? nombre : path.toString();
+    }
+
+    private static Throwable excepcionJson(HttpMessageNotReadableException ex) {
+        for (Throwable t = ex.getCause(); t != null && t != t.getCause(); t = t.getCause()) {
+            if (t instanceof JsonProcessingException) {
+                return t;
+            }
+        }
+        return ex;
     }
 
     private static String rutaJson(MismatchedInputException ex) {

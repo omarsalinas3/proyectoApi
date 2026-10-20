@@ -80,7 +80,7 @@ class ControlAccesoTest {
     void ejecutivoAccedeACualquierCliente() {
         autenticar(null, RolEnum.EJECUTIVO);
         assertDoesNotThrow(() -> controlAcceso.validarAccesoCliente(99L));
-        assertDoesNotThrow(() -> controlAcceso.validarRecursoPropio(c -> false, "la cuenta"));
+        assertDoesNotThrow(() -> controlAcceso.validarRecursoPropio(c -> false, "la cuenta solicitada"));
         verifyNoInteractions(clienteService);
     }
 
@@ -91,11 +91,11 @@ class ControlAccesoTest {
         when(clienteService.consultarPorId(1L)).thenReturn(clientePropio());
 
         assertDoesNotThrow(() -> controlAcceso.validarRecursoPropio(
-                c -> "helc950815hdfrpr03".equalsIgnoreCase(c.getCurp()), "el cliente"));
+                c -> "helc950815hdfrpr03".equalsIgnoreCase(c.getCurp()), "el cliente solicitado"));
         assertDoesNotThrow(() -> controlAcceso.validarRecursoPropio(
-                c -> PatronesValidacion.esCuentaDe(c, "4152000000000001"), "la cuenta"));
+                c -> PatronesValidacion.esCuentaDe(c, "4152000000000001"), "la cuenta solicitada"));
         assertThrows(AccesoDenegadoException.class, () -> controlAcceso.validarRecursoPropio(
-                c -> PatronesValidacion.esCuentaDe(c, "4152999999999999"), "la cuenta"));
+                c -> PatronesValidacion.esCuentaDe(c, "4152999999999999"), "la cuenta solicitada"));
     }
 
     @Test

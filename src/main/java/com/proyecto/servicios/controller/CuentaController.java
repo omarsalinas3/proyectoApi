@@ -75,7 +75,7 @@ public class CuentaController {
     public ResponseEntity<RespuestaApi<SaldoResponse>> consultarSaldo(@Valid @RequestBody CuentaSaldoRequest request) {
         log.info("Petición POST /api/v1/cuentas/saldo");
         String numeroCuenta = request.getNumeroCuenta();
-        controlAcceso.validarRecursoPropio(c -> PatronesValidacion.esCuentaDe(c, numeroCuenta), "la cuenta");
+        controlAcceso.validarRecursoPropio(c -> PatronesValidacion.esCuentaDe(c, numeroCuenta), "la cuenta solicitada");
         SaldoResponse saldo = cuentaService.consultarSaldoPorNumeroCuenta(numeroCuenta);
         return ResponseEntity.ok(RespuestaApi.exito("Saldo consultado exitosamente", saldo));
     }

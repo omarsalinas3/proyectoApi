@@ -65,7 +65,7 @@ public class ControlAcceso {
      * (ej. su CURP o su número de cuenta coinciden con el solicitado).
      *
      * @param perteneceAlCliente condición evaluada sobre el registro del cliente autenticado.
-     * @param recurso            descripción del recurso para el mensaje de error (ej. "la cuenta").
+     * @param recurso            descripción del recurso para el mensaje de error (ej. "la cuenta solicitada").
      */
     public void validarRecursoPropio(Predicate<ClienteResponse> perteneceAlCliente, String recurso) {
         UsuarioAutenticado usuario = usuarioActual();
@@ -75,7 +75,7 @@ public class ControlAcceso {
         ClienteResponse propio = clienteService.consultarPorId(usuario.clienteId());
         if (!perteneceAlCliente.test(propio)) {
             log.warn("Acceso denegado: el cliente {} intentó consultar {} de otro cliente", usuario.clienteId(), recurso);
-            throw new AccesoDenegadoException("No tiene permisos para consultar " + recurso + " solicitado");
+            throw new AccesoDenegadoException("No tiene permisos para consultar " + recurso);
         }
     }
 
