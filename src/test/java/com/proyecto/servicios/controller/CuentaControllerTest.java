@@ -73,13 +73,13 @@ class CuentaControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("MXN", response.getBody().getDatos().getSaldo().getMoneda());
-        verify(controlAcceso).validarRecursoPropio(any(), eq("la cuenta"));
+        verify(controlAcceso).validarRecursoPropio(any(), eq("la cuenta solicitada"));
     }
 
     @Test
     @DisplayName("POST /api/v1/cuentas/saldo de una cuenta ajena no debe consultar el saldo")
     void testConsultarSaldoAjeno() {
-        doThrow(new AccesoDenegadoException("sin permiso")).when(controlAcceso).validarRecursoPropio(any(), eq("la cuenta"));
+        doThrow(new AccesoDenegadoException("sin permiso")).when(controlAcceso).validarRecursoPropio(any(), eq("la cuenta solicitada"));
 
         assertThrows(AccesoDenegadoException.class, () ->
                 cuentaController.consultarSaldo(CuentaSaldoRequest.builder().numeroCuenta("9999999999999999").build()));
