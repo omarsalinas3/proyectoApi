@@ -1,101 +1,59 @@
 package com.proyecto.servicios.service;
 
+import com.proyecto.servicios.model.cliente.request.ClienteBusquedaRequest;
 import com.proyecto.servicios.model.cliente.request.ClienteRegistroRequest;
 import com.proyecto.servicios.model.cliente.request.ClienteUpdateRequest;
 import com.proyecto.servicios.model.cliente.response.ClienteResponse;
-
-import java.time.LocalDate;
-import java.util.List;
+import com.proyecto.servicios.model.common.PaginaResponse;
 
 /**
- * Interfaz del servicio principal para el proceso de Onboarding, consulta,
- * actualización y baja lógica de Clientes Personas Físicas.
+ * Interfaz de servicio para el Onboarding y ciclo de vida de Clientes Personas Físicas.
  *
  * @author Equipo de Desarrollo
- * @version 1.0
+ * @version 2.0
  */
 public interface ClienteService {
 
     /**
-     * Registra un nuevo cliente persona física, generando automáticamente su cuenta bancaria de 16 dígitos,
-     * saldo inicial de $0.00 y credenciales cifradas de acceso.
+     * Registra un cliente nuevo, genera su cuenta bancaria y sus credenciales.
      *
-     * @param request datos completos de registro validados.
-     * @return respuesta con los datos del cliente y su cuenta generada.
+     * @param request datos del cliente.
+     * @return cliente registrado con su cuenta.
      */
     ClienteResponse registrarCliente(ClienteRegistroRequest request);
 
     /**
-     * Actualiza los datos permitidos del cliente protegiendo la inmutabilidad de CURP, RFC y cuentas.
+     * Actualiza los datos editables del cliente indicado en {@code request.id}.
+     * CURP, RFC, número de cuenta, saldos y estatus no se modifican.
      *
-     * @param id identificador único del cliente.
-     * @param request datos actualizables.
-     * @return respuesta con los datos actualizados.
+     * @param request datos a actualizar.
+     * @return cliente actualizado.
      */
-    ClienteResponse actualizarCliente(Long id, ClienteUpdateRequest request);
+    ClienteResponse actualizarCliente(ClienteUpdateRequest request);
 
     /**
-     * Realiza la baja lógica de un cliente y cancela sus cuentas asociadas.
+     * Baja lógica: desactiva al cliente, cancela su cuenta y cierra su sesión.
      *
-     * @param id identificador único del cliente.
-     * @return respuesta del cliente con estatus inactivo.
+     * @param id identificador del cliente.
+     * @return cliente dado de baja.
      */
     ClienteResponse eliminarClienteLogico(Long id);
 
     /**
-     * Consulta un cliente por su identificador único.
+     * Consulta un cliente por su identificador.
      *
      * @param id identificador del cliente.
-     * @return datos completos del cliente.
+     * @return cliente encontrado.
+     * @throws com.proyecto.servicios.exception.ClienteNoEncontradoException si no existe.
      */
     ClienteResponse consultarPorId(Long id);
 
     /**
-     * Consulta un cliente por su CURP oficial.
+     * Busca clientes combinando los filtros informados (ID, CURP, RFC, correo, número de cuenta, nombre,
+     * estatus y rango de fechas de registro). Sin filtros devuelve todos los clientes paginados.
      *
-     * @param curp clave única de registro de población.
-     * @return datos completos del cliente.
+     * @param filtros criterios de búsqueda y paginación.
+     * @return página de clientes que cumplen los filtros.
      */
-    ClienteResponse consultarPorCurp(String curp);
-
-    /**
-     * Consulta un cliente por su RFC.
-     *
-     * @param rfc registro federal de contribuyentes.
-     * @return datos completos del cliente.
-     */
-    ClienteResponse consultarPorRfc(String rfc);
-
-    /**
-     * Consulta un cliente por su correo electrónico.
-     *
-     * @param correo dirección de correo electrónico.
-     * @return datos completos del cliente.
-     */
-    ClienteResponse consultarPorCorreo(String correo);
-
-    /**
-     * Consulta un cliente a partir de su número de cuenta bancaria de 16 dígitos.
-     *
-     * @param numeroCuenta número de cuenta de 16 dígitos.
-     * @return datos completos del cliente titular.
-     */
-    ClienteResponse consultarPorNumeroCuenta(String numeroCuenta);
-
-    /**
-     * Consulta todos los clientes registrados, con opción de filtrar solo activos.
-     *
-     * @param soloActivos si es {@code true}, solo retorna clientes con estatus activo.
-     * @return lista de clientes encontrados.
-     */
-    List<ClienteResponse> consultarTodos(Boolean soloActivos);
-
-    /**
-     * Consulta clientes registrados dentro de un rango de fechas.
-     *
-     * @param inicio fecha inicial del rango.
-     * @param fin fecha final del rango.
-     * @return lista de clientes registrados en dicho periodo.
-     */
-    List<ClienteResponse> consultarPorRangoFechas(LocalDate inicio, LocalDate fin);
+    PaginaResponse<ClienteResponse> buscar(ClienteBusquedaRequest filtros);
 }

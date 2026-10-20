@@ -1,9 +1,15 @@
 package com.proyecto.servicios.controller;
 
 import com.proyecto.servicios.enums.CodigoRespuestaEnum;
+import com.proyecto.servicios.exception.AccesoDenegadoException;
+import com.proyecto.servicios.model.cliente.request.ClienteBusquedaRequest;
+import com.proyecto.servicios.model.cliente.request.ClienteIdRequest;
 import com.proyecto.servicios.model.cliente.request.ClienteRegistroRequest;
 import com.proyecto.servicios.model.cliente.request.ClienteUpdateRequest;
 import com.proyecto.servicios.model.cliente.response.ClienteResponse;
+import com.proyecto.servicios.model.common.PaginaResponse;
+import com.proyecto.servicios.model.common.RespuestaApi;
+import com.proyecto.servicios.security.ControlAcceso;
 import com.proyecto.servicios.service.ClienteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,12 +21,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,6 +33,9 @@ class ClienteControllerTest {
     @Mock
     private ClienteService clienteService;
 
+    @Mock
+    private ControlAcceso controlAcceso;
+
     @InjectMocks
     private ClienteController clienteController;
 
@@ -38,9 +44,6 @@ class ClienteControllerTest {
     @BeforeEach
     void setUp() {
         clienteResponse = ClienteResponse.builder()
-                .codigoRespuesta(CodigoRespuestaEnum.EXITO)
-                .codigo(0)
-                .mensaje("Operación realizada con éxito")
                 .id(1L)
                 .nombre("Carlos")
                 .curp("HELC950815HDFRPR03")
@@ -50,98 +53,87 @@ class ClienteControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/clientes debe registrar cliente y retornar HTTP 201 Created con código 0")
+    @DisplayName("POST /api/v1/clientes debe registrar y responder 201 con la estructura uniforme")
     void testRegistrarCliente() {
-        ClienteRegistroRequest request = ClienteRegistroRequest.builder()
-                .curp("HELC950815HDFRPR03")
-                .build();
+        ClienteRegistroRequest request = ClienteRegistroRequest.builder().curp("HELC950815HDFRPR03").build();
+        when(clienteService.registrarCliente(request)).thenReturn(clienteResponse);
 
-        when(clienteService.registrarCliente(any(ClienteRegistroRequest.class))).thenReturn(clienteResponse);
+        ResponseEntity<RespuestaApi<ClienteResponse>> response = clienteController.registrarCliente(request);
 
-        ResponseEntity<ClienteResponse> response = clienteController.registrarCliente(request);
-
-        assertNotNull(response);
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
         assertEquals(0, response.getBody().getCodigo());
-        verify(clienteService).registrarCliente(request);
+        assertEquals(CodigoRespuestaEnum.EXITO, response.getBody().getCodigoRespuesta());
+        assertEquals("HELC950815HDFRPR03", response.getBody().getDatos().getCurp());
+        assertNotNull(response.getBody().getTimestamp());
     }
 
     @Test
-    @DisplayName("PUT /api/v1/clientes/{id} debe actualizar cliente y retornar HTTP 200 OK")
-    void testActualizarCliente() {
-        ClienteUpdateRequest request = ClienteUpdateRequest.builder().nombre("Carlos").build();
-        when(clienteService.actualizarCliente(eq(1L), any(ClienteUpdateRequest.class))).thenReturn(clienteResponse);
+    @DisplayName("POST /api/v1/clientes/buscar debe aplicar el control de acceso antes de buscar")
+    void testBuscarClientes() {
+        ClienteBusquedaRequest filtros = ClienteBusquedaRequest.builder().curp("HELC950815HDFRPR03").build();
+        PaginaResponse<ClienteResponse> pagina = PaginaResponse.<ClienteResponse>builder()
+                .contenido(List.of(clienteResponse)).pagina(0).tamanio(20).totalElementos(1).totalPaginas(1).build();
+        when(controlAcceso.limitarBusquedaClientes(filtros)).thenReturn(filtros);
+        when(clienteService.buscar(filtros)).thenReturn(pagina);
 
-        ResponseEntity<ClienteResponse> response = clienteController.actualizarCliente(1L, request);
+        ResponseEntity<RespuestaApi<PaginaResponse<ClienteResponse>>> response = clienteController.buscarClientes(filtros);
 
-        assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(0, response.getBody().getCodigo());
-        verify(clienteService).actualizarCliente(1L, request);
+        assertEquals(1, response.getBody().getDatos().getTotalElementos());
+        assertEquals("Se encontraron 1 cliente(s)", response.getBody().getMensaje());
+        var orden = inOrder(controlAcceso, clienteService);
+        orden.verify(controlAcceso).limitarBusquedaClientes(filtros);
+        orden.verify(clienteService).buscar(filtros);
     }
 
     @Test
-    @DisplayName("DELETE /api/v1/clientes/{id} debe aplicar baja lógica y retornar HTTP 200 OK")
+    @DisplayName("POST /api/v1/clientes/buscar sin resultados debe responder 200 con mensaje específico")
+    void testBuscarClientesSinResultados() {
+        ClienteBusquedaRequest filtros = ClienteBusquedaRequest.builder().nombre("inexistente").build();
+        when(controlAcceso.limitarBusquedaClientes(filtros)).thenReturn(filtros);
+        when(clienteService.buscar(filtros)).thenReturn(PaginaResponse.<ClienteResponse>builder()
+                .contenido(List.of()).pagina(0).tamanio(20).totalElementos(0).totalPaginas(0).build());
+
+        ResponseEntity<RespuestaApi<PaginaResponse<ClienteResponse>>> response = clienteController.buscarClientes(filtros);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("No se encontraron clientes con los criterios indicados", response.getBody().getMensaje());
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/clientes debe validar el acceso al id del cuerpo y actualizar")
+    void testActualizarCliente() {
+        ClienteUpdateRequest request = ClienteUpdateRequest.builder().id(1L).nombre("Carlos Eduardo").build();
+        when(clienteService.actualizarCliente(request)).thenReturn(clienteResponse);
+
+        ResponseEntity<RespuestaApi<ClienteResponse>> response = clienteController.actualizarCliente(request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(controlAcceso).validarAccesoCliente(1L);
+        verify(clienteService).actualizarCliente(request);
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/clientes no debe ejecutar la lógica de negocio si el id pertenece a otro cliente")
+    void testActualizarClienteAjeno() {
+        ClienteUpdateRequest request = ClienteUpdateRequest.builder().id(2L).build();
+        doThrow(new AccesoDenegadoException("sin permiso")).when(controlAcceso).validarAccesoCliente(2L);
+
+        assertThrows(AccesoDenegadoException.class, () -> clienteController.actualizarCliente(request));
+        verifyNoInteractions(clienteService);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/clientes debe aplicar baja lógica con el id del cuerpo")
     void testEliminarClienteLogico() {
         clienteResponse.setActivo(false);
         when(clienteService.eliminarClienteLogico(1L)).thenReturn(clienteResponse);
 
-        ResponseEntity<ClienteResponse> response = clienteController.eliminarClienteLogico(1L);
+        ResponseEntity<RespuestaApi<ClienteResponse>> response =
+                clienteController.eliminarClienteLogico(ClienteIdRequest.builder().id(1L).build());
 
-        assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertFalse(response.getBody().getActivo());
-        verify(clienteService).eliminarClienteLogico(1L);
-    }
-
-    @Test
-    @DisplayName("GET /api/v1/clientes/{id} debe retornar cliente por ID")
-    void testConsultarPorId() {
-        when(clienteService.consultarPorId(1L)).thenReturn(clienteResponse);
-
-        ResponseEntity<ClienteResponse> response = clienteController.consultarPorId(1L);
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(1L, response.getBody().getId());
-    }
-
-    @Test
-    @DisplayName("GET /api/v1/clientes/curp/{curp} debe retornar cliente por CURP")
-    void testConsultarPorCurp() {
-        when(clienteService.consultarPorCurp("HELC950815HDFRPR03")).thenReturn(clienteResponse);
-
-        ResponseEntity<ClienteResponse> response = clienteController.consultarPorCurp("HELC950815HDFRPR03");
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals("HELC950815HDFRPR03", response.getBody().getCurp());
-    }
-
-    @Test
-    @DisplayName("GET /api/v1/clientes debe retornar listado de clientes")
-    void testConsultarTodos() {
-        when(clienteService.consultarTodos(true)).thenReturn(List.of(clienteResponse));
-
-        ResponseEntity<List<ClienteResponse>> response = clienteController.consultarTodos(true);
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(1, response.getBody().size());
-    }
-
-    @Test
-    @DisplayName("GET /api/v1/clientes/rango-fechas debe retornar clientes por rango")
-    void testConsultarPorRangoFechas() {
-        LocalDate inicio = LocalDate.of(2026, 1, 1);
-        LocalDate fin = LocalDate.of(2026, 12, 31);
-        when(clienteService.consultarPorRangoFechas(inicio, fin)).thenReturn(List.of(clienteResponse));
-
-        ResponseEntity<List<ClienteResponse>> response = clienteController.consultarPorRangoFechas(inicio, fin);
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(1, response.getBody().size());
+        assertFalse(response.getBody().getDatos().getActivo());
+        verify(controlAcceso).validarAccesoCliente(1L);
     }
 }

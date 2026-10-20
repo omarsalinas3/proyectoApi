@@ -1,6 +1,5 @@
 package com.proyecto.servicios.service.Impl;
 
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.entity.cliente.CuentaEntity;
 import com.proyecto.servicios.entity.cliente.DomicilioEntity;
 import com.proyecto.servicios.entity.cliente.LoginEntity;
@@ -243,11 +242,7 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
         UsuarioEntity saved = usuarioRepository.save(usuario);
         log.info("Cliente registrado con éxito ID: {}, Cuenta: {}", saved.getId(), numeroCuenta);
 
-        ClienteResponse response = clienteMapper.entityToResponse(saved);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(0);
-        response.setMensaje("Cliente registrado y cuenta bancaria generada exitosamente (Bandera 1)");
-        return response;
+        return clienteMapper.entityToResponse(saved);
     }
 
     /**
@@ -314,11 +309,7 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
         UsuarioEntity updated = usuarioRepository.save(usuario);
         log.info("Cliente actualizado con éxito ID: {}", updated.getId());
 
-        ClienteResponse response = clienteMapper.entityToResponse(updated);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(0);
-        response.setMensaje("Cliente actualizado exitosamente preservando CURP/RFC (Bandera 2)");
-        return response;
+        return clienteMapper.entityToResponse(updated);
     }
 
     /**
@@ -343,11 +334,7 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
         UsuarioEntity deactivated = usuarioRepository.save(usuario);
         log.info("Cliente dado de baja lógica ID: {}", deactivated.getId());
 
-        ClienteResponse response = clienteMapper.entityToResponse(deactivated);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(0);
-        response.setMensaje("Cliente dado de baja lógica exitosamente (Bandera 3)");
-        return response;
+        return clienteMapper.entityToResponse(deactivated);
     }
 
     /**

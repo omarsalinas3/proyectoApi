@@ -1,6 +1,7 @@
 package com.proyecto.servicios.exception;
 
 import com.proyecto.servicios.enums.CodigoRespuestaEnum;
+import com.proyecto.servicios.model.common.RespuestaApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,7 @@ class GlobalExceptionHandlerTest {
         ExternalServiceAuthException ex = new ExternalServiceAuthException("Token inválido", 401);
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleExternalServiceAuthException(ex);
+        ResponseEntity<RespuestaApi<Void>> response = exceptionHandler.handleExternalServiceAuthException(ex);
 
         // Assert
         assertNotNull(response);
@@ -52,7 +53,7 @@ class GlobalExceptionHandlerTest {
         ExternalServiceTimeoutException ex = new ExternalServiceTimeoutException("Timeout de lectura");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleTimeoutException(ex);
+        ResponseEntity<RespuestaApi<Void>> response = exceptionHandler.handleTimeoutException(ex);
 
         // Assert
         assertNotNull(response);
@@ -71,7 +72,7 @@ class GlobalExceptionHandlerTest {
         ExternalServiceException ex = new ExternalServiceException("Error en proveedor", 502);
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleExternalServiceException(ex);
+        ResponseEntity<RespuestaApi<Void>> response = exceptionHandler.handleExternalServiceException(ex);
 
         // Assert
         assertNotNull(response);
@@ -90,7 +91,7 @@ class GlobalExceptionHandlerTest {
         RuntimeException ex = new RuntimeException("Error inesperado en base de datos");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleGenericException(ex);
+        ResponseEntity<RespuestaApi<Void>> response = exceptionHandler.handleGenericException(ex);
 
         // Assert
         assertNotNull(response);

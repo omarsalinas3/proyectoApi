@@ -5,7 +5,6 @@ import com.proyecto.servicios.entity.cliente.DomicilioEntity;
 import com.proyecto.servicios.entity.cliente.LoginEntity;
 import com.proyecto.servicios.entity.cliente.SaldoEntity;
 import com.proyecto.servicios.entity.cliente.UsuarioEntity;
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.exception.ClienteNoEncontradoException;
 import com.proyecto.servicios.exception.CorreoDuplicadoException;
 import com.proyecto.servicios.exception.CurpDuplicadaException;
@@ -13,27 +12,29 @@ import com.proyecto.servicios.exception.RfcDuplicadoException;
 import com.proyecto.servicios.exception.UsuarioDuplicadoException;
 import com.proyecto.servicios.exception.ValidacionNegocioException;
 import com.proyecto.servicios.mapper.ClienteMapper;
+import com.proyecto.servicios.model.cliente.request.ClienteBusquedaRequest;
 import com.proyecto.servicios.model.cliente.request.ClienteRegistroRequest;
 import com.proyecto.servicios.model.cliente.request.ClienteUpdateRequest;
 import com.proyecto.servicios.model.cliente.response.ClienteResponse;
+import com.proyecto.servicios.model.common.PaginaResponse;
 import com.proyecto.servicios.repositorys.cliente.LoginRepository;
 import com.proyecto.servicios.repositorys.cliente.UsuarioRepository;
+import com.proyecto.servicios.repositorys.cliente.UsuarioSpecifications;
 import com.proyecto.servicios.service.BiometricService;
 import com.proyecto.servicios.service.ClienteService;
 import com.proyecto.servicios.service.CuentaService;
 import com.proyecto.servicios.util.CryptoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.time.Period;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Implementación de la lógica de negocio para el Onboarding y ciclo de vida de Clientes Personas Físicas.
@@ -169,16 +170,13 @@ public class ClienteServiceImpl implements ClienteService {
         log.info("Onboarding completado exitosamente para cliente ID: {}, Cuenta: {}", savedUsuario.getId(), numeroCuenta);
 
         // 9. Construir respuesta estandarizada
-        ClienteResponse response = clienteMapper.entityToResponse(savedUsuario);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-        response.setMensaje("Cliente y cuenta bancaria registrados exitosamente");
-        return response;
+        return clienteMapper.entityToResponse(savedUsuario);
     }
 
     @Override
     @Transactional
-    public ClienteResponse actualizarCliente(Long id, ClienteUpdateRequest request) {
+    public ClienteResponse actualizarCliente(ClienteUpdateRequest request) {
+        Long id = request.getId();
         log.info("Actualizando información del cliente ID: {}", id);
 
         UsuarioEntity usuario = usuarioRepository.findById(id)
@@ -207,11 +205,7 @@ public class ClienteServiceImpl implements ClienteService {
         UsuarioEntity savedUsuario = usuarioRepository.save(usuario);
         log.info("Cliente ID: {} actualizado exitosamente", id);
 
-        ClienteResponse response = clienteMapper.entityToResponse(savedUsuario);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-        response.setMensaje("Datos del cliente actualizados exitosamente");
-        return response;
+        return clienteMapper.entityToResponse(savedUsuario);
     }
 
     @Override
@@ -238,11 +232,7 @@ public class ClienteServiceImpl implements ClienteService {
         UsuarioEntity saved = usuarioRepository.save(usuario);
         log.info("Baja lógica aplicada al cliente ID: {}. Cuenta cancelada.", id);
 
-        ClienteResponse response = clienteMapper.entityToResponse(saved);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-        response.setMensaje("Cliente y productos asociados dados de baja correctamente");
-        return response;
+        return clienteMapper.entityToResponse(saved);
     }
 
     @Override
@@ -252,102 +242,17 @@ public class ClienteServiceImpl implements ClienteService {
         UsuarioEntity usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new ClienteNoEncontradoException("No se encontró el cliente con ID: " + id));
 
-        ClienteResponse response = clienteMapper.entityToResponse(usuario);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-        response.setMensaje("Cliente consultado exitosamente");
-        return response;
+        return clienteMapper.entityToResponse(usuario);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ClienteResponse consultarPorCurp(String curp) {
-        log.info("Consultando cliente por CURP: {}", curp);
-        UsuarioEntity usuario = usuarioRepository.findByCurp(curp.trim().toUpperCase())
-                .orElseThrow(() -> new ClienteNoEncontradoException("No se encontró el cliente con CURP: " + curp));
-
-        ClienteResponse response = clienteMapper.entityToResponse(usuario);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-        response.setMensaje("Cliente consultado exitosamente");
-        return response;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public ClienteResponse consultarPorRfc(String rfc) {
-        log.info("Consultando cliente por RFC: {}", rfc);
-        UsuarioEntity usuario = usuarioRepository.findByRfc(rfc.trim().toUpperCase())
-                .orElseThrow(() -> new ClienteNoEncontradoException("No se encontró el cliente con RFC: " + rfc));
-
-        ClienteResponse response = clienteMapper.entityToResponse(usuario);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-        response.setMensaje("Cliente consultado exitosamente");
-        return response;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public ClienteResponse consultarPorCorreo(String correo) {
-        log.info("Consultando cliente por correo: {}", correo);
-        UsuarioEntity usuario = usuarioRepository.findByCorreo(correo.trim().toLowerCase())
-                .orElseThrow(() -> new ClienteNoEncontradoException("No se encontró el cliente con correo: " + correo));
-
-        ClienteResponse response = clienteMapper.entityToResponse(usuario);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-        response.setMensaje("Cliente consultado exitosamente");
-        return response;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public ClienteResponse consultarPorNumeroCuenta(String numeroCuenta) {
-        log.info("Consultando cliente por número de cuenta: {}", numeroCuenta);
-        UsuarioEntity usuario = usuarioRepository.findByNumeroCuenta(numeroCuenta.trim())
-                .orElseThrow(() -> new ClienteNoEncontradoException("No se encontró ningún cliente asociado a la cuenta: " + numeroCuenta));
-
-        ClienteResponse response = clienteMapper.entityToResponse(usuario);
-        response.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-        response.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-        response.setMensaje("Cliente consultado exitosamente");
-        return response;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<ClienteResponse> consultarTodos(Boolean soloActivos) {
-        log.info("Consultando listado de clientes. Filtro soloActivos: {}", soloActivos);
-        List<UsuarioEntity> usuarios = Boolean.TRUE.equals(soloActivos)
-                ? usuarioRepository.findByActivoTrue()
-                : usuarioRepository.findAll();
-
-        return usuarios.stream()
-                .map(u -> {
-                    ClienteResponse r = clienteMapper.entityToResponse(u);
-                    r.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-                    r.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-                    return r;
-                })
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<ClienteResponse> consultarPorRangoFechas(LocalDate inicio, LocalDate fin) {
-        log.info("Consultando clientes por rango de fechas de registro: {} - {}", inicio, fin);
-        OffsetDateTime fechaInicio = inicio.atStartOfDay().atOffset(ZoneOffset.UTC);
-        OffsetDateTime fechaFin = fin.atTime(23, 59, 59).atOffset(ZoneOffset.UTC);
-
-        List<UsuarioEntity> usuarios = usuarioRepository.findByFechaRegistroBetween(fechaInicio, fechaFin);
-        return usuarios.stream()
-                .map(u -> {
-                    ClienteResponse r = clienteMapper.entityToResponse(u);
-                    r.setCodigoRespuesta(CodigoRespuestaEnum.EXITO);
-                    r.setCodigo(CodigoRespuestaEnum.EXITO.getCodigo());
-                    return r;
-                })
-                .collect(Collectors.toList());
+    public PaginaResponse<ClienteResponse> buscar(ClienteBusquedaRequest filtros) {
+        log.info("Buscando clientes con filtros: id={}, activo={}, desde={}, hasta={}, pagina={}, tamanio={}",
+                filtros.getId(), filtros.getActivo(), filtros.getFechaRegistroDesde(), filtros.getFechaRegistroHasta(),
+                filtros.getPagina(), filtros.getTamanio());
+        PageRequest pagina = PageRequest.of(filtros.getPagina(), filtros.getTamanio(), Sort.by(Sort.Direction.ASC, "id"));
+        Page<UsuarioEntity> resultado = usuarioRepository.findAll(UsuarioSpecifications.conFiltros(filtros), pagina);
+        return PaginaResponse.de(resultado, clienteMapper::entityToResponse);
     }
 }

@@ -50,6 +50,7 @@ dependencies {
     implementation 'org.hibernate:hibernate-core:6.5.3.Final'
     implementation 'io.lettuce:lettuce-core:6.5.1.RELEASE'
     //Seguridad
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     //implementation 'io.jsonwebtoken:jjwt:0.9.1'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     implementation 'com.auth0:jwks-rsa:0.22.1'
@@ -84,6 +85,7 @@ dependencies {
 
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.mockito:mockito-inline:5.1.1'
     runtimeOnly 'com.h2database:h2:2.2.220'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

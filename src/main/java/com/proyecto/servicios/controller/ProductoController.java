@@ -1,7 +1,7 @@
 package com.proyecto.servicios.controller;
 
 import com.proyecto.servicios.enums.CodigoRespuestaEnum;
-import com.proyecto.servicios.exception.ErrorResponse;
+import com.proyecto.servicios.model.common.RespuestaApi;
 import com.proyecto.servicios.model.producto.request.ProductoConsultaRequest;
 import com.proyecto.servicios.model.producto.response.ProductoAgrupadoResponse;
 import com.proyecto.servicios.model.producto.response.ProductoListResponse;
@@ -71,17 +71,17 @@ public class ProductoController {
             @ApiResponse(
                     responseCode = "401",
                     description = "No autorizado - Fallo de autenticación con el servicio externo",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class))
             ),
             @ApiResponse(
                     responseCode = "502",
                     description = "Bad Gateway - Error devuelto por el servicio externo",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class))
             ),
             @ApiResponse(
                     responseCode = "504",
                     description = "Gateway Timeout - Tiempo de espera agotado al comunicar con el servicio externo",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class))
             )
     })
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
@@ -109,12 +109,12 @@ public class ProductoController {
             @ApiResponse(
                     responseCode = "401",
                     description = "No autorizado - Fallo de autenticación",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class))
             ),
             @ApiResponse(
                     responseCode = "502",
                     description = "Bad Gateway - Fallo en integración",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class))
             )
     })
     @GetMapping(value = "/agrupados-por-tipo-front", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -189,7 +189,7 @@ public class ProductoController {
             @ApiResponse(
                     responseCode = "502",
                     description = "Bad Gateway - Error de comunicación con el servicio externo",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class))
             )
     })
     @GetMapping(value = "/frontend", produces = MediaType.APPLICATION_JSON_VALUE)

@@ -86,8 +86,22 @@ public enum CodigoRespuestaEnum {
     /** Sesión inactiva o expirada por tiempo dinámico. */
     ERROR_SESION_EXPIRADA(31, "La sesión ha expirado por inactividad"),
 
+    ERROR_ACCESO_DENEGADO(32, "No tiene permisos para acceder al recurso solicitado"),
+
+    ERROR_NO_AUTENTICADO(33, "Autenticación requerida"),
+
     /** Violación de regla de negocio o datos inmutables. */
     ERROR_VALIDACION_NEGOCIO(40, "Error en validación de reglas de negocio"),
+
+    ERROR_PARAMETRO_INVALIDO(41, "Parámetros de entrada inválidos"),
+
+    ERROR_RECURSO_NO_ENCONTRADO(44, "El recurso solicitado no existe"),
+
+    ERROR_METODO_NO_PERMITIDO(45, "Método HTTP no permitido para este recurso"),
+
+    ERROR_TIPO_CONTENIDO(46, "Tipo de contenido no soportado"),
+
+    ERROR_CONFLICTO_DATOS(47, "La operación viola una restricción de integridad de datos"),
 
     /** Error interno del servidor (condición inesperada no controlada). */
     ERROR_INTERNO(99, "Error interno del servidor");

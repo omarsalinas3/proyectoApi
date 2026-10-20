@@ -1,9 +1,15 @@
 package com.proyecto.servicios.service;
 
+import com.proyecto.servicios.model.cliente.request.CuentaBusquedaRequest;
+import com.proyecto.servicios.model.common.PaginaResponse;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import com.proyecto.servicios.entity.cliente.CuentaEntity;
 import com.proyecto.servicios.entity.cliente.SaldoEntity;
 import com.proyecto.servicios.entity.cliente.UsuarioEntity;
-import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.exception.CuentaNoEncontradaException;
 import com.proyecto.servicios.mapper.ClienteMapper;
 import com.proyecto.servicios.model.cliente.dto.CuentaDTO;
@@ -76,43 +82,34 @@ class CuentaServiceImplTest {
     }
 
     @Test
-    @DisplayName("Debe consultar cuenta por número de cuenta exitosamente")
-    void testConsultarPorNumeroCuenta() {
-        when(cuentaRepository.findByNumeroCuenta("1234567890123456")).thenReturn(Optional.of(cuentaEntity));
+    @DisplayName("Debe buscar cuentas con filtros combinados y devolver el resultado paginado")
+    void testBuscarCuentas() {
         CuentaResponse responseMock = CuentaResponse.builder()
                 .cuenta(CuentaDTO.builder().numeroCuenta("1234567890123456").estatus("ACTIVA").build())
                 .build();
+        when(cuentaRepository.findAll(org.mockito.ArgumentMatchers.<Specification<CuentaEntity>>any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(cuentaEntity), PageRequest.of(0, 20), 1));
         when(clienteMapper.toCuentaResponse(cuentaEntity)).thenReturn(responseMock);
 
-        CuentaResponse response = cuentaService.consultarPorNumeroCuenta("1234567890123456");
+        CuentaBusquedaRequest filtros = CuentaBusquedaRequest.builder().estatus("ACTIVA").clienteId(1L).build();
+        PaginaResponse<CuentaResponse> pagina = cuentaService.buscar(filtros);
 
-        assertNotNull(response);
-        assertEquals(CodigoRespuestaEnum.EXITO, response.getCodigoRespuesta());
-        assertEquals(0, response.getCodigo());
-        verify(cuentaRepository).findByNumeroCuenta("1234567890123456");
+        assertEquals(1, pagina.getTotalElementos());
+        assertEquals(1, pagina.getContenido().size());
+        assertEquals("1234567890123456", pagina.getContenido().get(0).getCuenta().getNumeroCuenta());
+        ArgumentCaptor<Pageable> paginaCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(cuentaRepository).findAll(org.mockito.ArgumentMatchers.<Specification<CuentaEntity>>any(), paginaCaptor.capture());
+        assertEquals(0, paginaCaptor.getValue().getPageNumber());
+        assertEquals(20, paginaCaptor.getValue().getPageSize());
     }
 
     @Test
-    @DisplayName("Debe lanzar CuentaNoEncontradaException cuando no existe el número de cuenta")
-    void testConsultarPorNumeroCuentaNoEncontrada() {
+    @DisplayName("Debe lanzar CuentaNoEncontradaException al consultar el saldo de una cuenta inexistente")
+    void testConsultarSaldoCuentaNoEncontrada() {
         when(cuentaRepository.findByNumeroCuenta("9999999999999999")).thenReturn(Optional.empty());
 
         assertThrows(CuentaNoEncontradaException.class,
-                () -> cuentaService.consultarPorNumeroCuenta("9999999999999999"));
-    }
-
-    @Test
-    @DisplayName("Debe consultar lista de cuentas activas")
-    void testConsultarCuentasActivas() {
-        when(cuentaRepository.findByEstatus("ACTIVA")).thenReturn(List.of(cuentaEntity));
-        CuentaResponse responseMock = CuentaResponse.builder().build();
-        when(clienteMapper.toCuentaResponse(any(CuentaEntity.class))).thenReturn(responseMock);
-
-        List<CuentaResponse> response = cuentaService.consultarCuentasActivas();
-
-        assertNotNull(response);
-        assertEquals(1, response.size());
-        verify(cuentaRepository).findByEstatus("ACTIVA");
+                () -> cuentaService.consultarSaldoPorNumeroCuenta("9999999999999999"));
     }
 
     @Test
@@ -128,8 +125,7 @@ class CuentaServiceImplTest {
         SaldoResponse response = cuentaService.consultarSaldoPorNumeroCuenta("1234567890123456");
 
         assertNotNull(response);
-        assertEquals(CodigoRespuestaEnum.EXITO, response.getCodigoRespuesta());
-        assertEquals(0, response.getCodigo());
+        assertEquals("MXN", response.getSaldo().getMoneda());
     }
 
     @Test

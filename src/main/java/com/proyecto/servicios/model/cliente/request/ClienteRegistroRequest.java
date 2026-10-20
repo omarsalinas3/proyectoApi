@@ -1,5 +1,6 @@
 package com.proyecto.servicios.model.cliente.request;
 
+import com.proyecto.servicios.model.common.RequestEstricto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.proyecto.servicios.model.cliente.dto.DomicilioDTO;
@@ -9,6 +10,7 @@ import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
@@ -27,7 +29,8 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "Petición de registro de cliente persona física con validaciones de negocio")
-public class ClienteRegistroRequest implements Serializable {
+@EqualsAndHashCode(callSuper = false)
+public class ClienteRegistroRequest extends RequestEstricto implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -172,7 +175,7 @@ public class ClienteRegistroRequest implements Serializable {
 
     @Schema(description = "Contraseña en texto plano para su posterior cifrado seguro", example = "PasswordSeguro123!")
     @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, max = 100, message = "La contraseña debe tener entre 8 y 100 caracteres")
+    @Size(min = 8, max = 72, message = "La contraseña debe tener entre 8 y 72 caracteres")
     @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s])\\S+$",
             message = "La contraseña debe incluir al menos una mayúscula, una minúscula, un número y un símbolo, sin espacios")
     private String password;
