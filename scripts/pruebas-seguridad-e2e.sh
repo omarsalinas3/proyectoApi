@@ -18,6 +18,16 @@ TMP=${TMPDIR:-/tmp}
 ruta_curl() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else echo "$1"; fi; }
 PASS=0; FAIL=0
 
+# Identificadores únicos por ejecución: permiten correr las pruebas sobre una base que ya tiene datos.
+read -r ANA_CURP ANA_RFC ANA_CORREO ANA_FACEID JORGE_CURP JORGE_RFC JORGE_CORREO JORGE_USER <<< "$(node -e "
+const c=require('crypto');const r=(a,n)=>Array.from({length:n},()=>a[c.randomInt(a.length)]).join('');
+const CONS='BCDFGHJKLMNPQRSTVWXYZ',ALNUM='ABCDEFGHIJKLMNPQRSTUVWXYZ0123456789',DIG='0123456789';
+const suf=r('abcdefghijkmnpqrstuvwxyz23456789',6);
+console.log(['MOCA920730MDF'+r(CONS,3)+r(ALNUM,1)+r(DIG,1),'MOCA920730'+r(ALNUM,3),'ana.'+suf+'@example.com',
+  r('123456789',1)+r(DIG,11),'RASJ850112HPL'+r(CONS,3)+r(ALNUM,1)+r(DIG,1),'RASJ850112'+r(ALNUM,3),
+  'jorge.'+suf+'@example.com','jorge.'+suf].join(' '))")"
+echo "Datos de prueba: ana=$ANA_CURP / $ANA_CORREO | jorge=$JORGE_CURP / $JORGE_USER"
+
 # J <expresión>: evalúa una expresión sobre el JSON de la última respuesta (ej. J datos.id)
 J() { node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const o=JSON.parse(d);const v=eval('o.'+process.argv[1]);console.log(v===undefined||v===null?'':(typeof v==='object'?JSON.stringify(v):v))}catch(e){console.log('')}})" "$1" < "$TMP/e2e_body"; }
 
@@ -43,8 +53,8 @@ expect() {
   else FAIL=$((FAIL+1)); printf 'FALLA %s: se obtuvo "%s", se esperaba "%s"\n' "$1" "$2" "$3"; fi
 }
 
-ANA='{"bandera":1,"datosPersonales":{"nombre":"Ana","segundoNombre":"Sofía","apellidoPaterno":"Morales","apellidoMaterno":"Castillo","fechaNacimiento":"1992-07-30","curp":"MOCA920730MDFRLSA7","rfc":"MOCA920730QW4","sexo":"F","nacionalidad":"Mexicana","estadoCivil":"SOLTERO","datosBiometricos":987654321098},"datosContacto":{"correo":"ana.morales@example.com","telefonoMovil":"5544332211"},"domicilio":{"calle":"Av. Insurgentes Sur","numeroExterior":"1602","colonia":"Crédito Constructor","municipio":"Benito Juárez","estado":"Ciudad de México","codigoPostal":"03940","pais":"México"},"informacionFinanciera":{"ocupacion":"Arquitecta","ingresoMensual":48000.75},"autenticacion":{"password":"AnaSegura#2026","faceId":987654321098}}'
-JORGE='{"nombre":"Jorge","apellidoPaterno":"Ramírez","apellidoMaterno":"Salgado","fechaNacimiento":"1985-01-12","curp":"RASJ850112HPLMLR04","rfc":"RASJ850112HB6","sexo":"M","nacionalidad":"Mexicana","estadoCivil":"CASADO","correo":"jorge.ramirez@example.com","telefonoMovil":"2223344556","ocupacion":"Médico Cirujano","empresa":"Hospital Ángeles Puebla","ingresoMensual":85000,"domicilio":{"calle":"Blvd. del Niño Poblano","numeroExterior":"2510","colonia":"Reserva Territorial","municipio":"San Andrés Cholula","estado":"Puebla","codigoPostal":"72810","pais":"México"},"username":"jorge.ramirez85","password":"Jorge$Pass2026"}'
+ANA='{"bandera":1,"datosPersonales":{"nombre":"Ana","segundoNombre":"Sofía","apellidoPaterno":"Morales","apellidoMaterno":"Castillo","fechaNacimiento":"1992-07-30","curp":"'"$ANA_CURP"'","rfc":"'"$ANA_RFC"'","sexo":"F","nacionalidad":"Mexicana","estadoCivil":"SOLTERO","datosBiometricos":'"$ANA_FACEID"'},"datosContacto":{"correo":"'"$ANA_CORREO"'","telefonoMovil":"5544332211"},"domicilio":{"calle":"Av. Insurgentes Sur","numeroExterior":"1602","colonia":"Crédito Constructor","municipio":"Benito Juárez","estado":"Ciudad de México","codigoPostal":"03940","pais":"México"},"informacionFinanciera":{"ocupacion":"Arquitecta","ingresoMensual":48000.75},"autenticacion":{"password":"AnaSegura#2026","faceId":'"$ANA_FACEID"'}}'
+JORGE='{"nombre":"Jorge","apellidoPaterno":"Ramírez","apellidoMaterno":"Salgado","fechaNacimiento":"1985-01-12","curp":"'"$JORGE_CURP"'","rfc":"'"$JORGE_RFC"'","sexo":"M","nacionalidad":"Mexicana","estadoCivil":"CASADO","correo":"'"$JORGE_CORREO"'","telefonoMovil":"2223344556","ocupacion":"Médico Cirujano","empresa":"Hospital Ángeles Puebla","ingresoMensual":85000,"domicilio":{"calle":"Blvd. del Niño Poblano","numeroExterior":"2510","colonia":"Reserva Territorial","municipio":"San Andrés Cholula","estado":"Puebla","codigoPostal":"72810","pais":"México"},"username":"'"$JORGE_USER"'","password":"Jorge$Pass2026"}'
 
 echo "== Registro (público) y estructura uniforme de éxito"
 check "alta layaway bandera 1" 201 POST /api/v1/layaway/cliente "" "$ANA"
@@ -65,36 +75,36 @@ check "alta con JSON mal formado" 400 POST /api/v1/clientes "" '{"nombre":'
 check "alta con tipo de dato inválido" 400 POST /api/v1/clientes "" '{"ingresoMensual":"mucho"}'
 
 echo "== Login"
-check "login ana (correo + contraseña)" 200 POST /api/v1/auth/login "" '{"bandera":1,"username":"ana.morales@example.com","password":"AnaSegura#2026"}'
+check "login ana (correo + contraseña)" 200 POST /api/v1/auth/login "" '{"bandera":1,"username":"'"$ANA_CORREO"'","password":"AnaSegura#2026"}'
 TA=$(J datos.token)
-check "login jorge (username)" 200 POST /api/v1/auth/login "" '{"bandera":1,"username":"jorge.ramirez85","password":"Jorge$Pass2026"}'
+check "login jorge (username)" 200 POST /api/v1/auth/login "" '{"bandera":1,"username":"'"$JORGE_USER"'","password":"Jorge$Pass2026"}'
 TJ=$(J datos.token)
 check "login ejecutivo" 200 POST /api/v1/auth/login "" "{\"bandera\":1,\"username\":\"$EJECUTIVO_USUARIO\",\"password\":\"$EJECUTIVO_PASSWORD\"}"
 TE=$(J datos.token)
-check "contraseña incorrecta" 401 POST /api/v1/auth/login "" '{"bandera":1,"username":"ana.morales@example.com","password":"Mala#2026x"}'
-check "bandera inexistente" 400 POST /api/v1/auth/login "" '{"bandera":9,"username":"ana.morales@example.com","password":"x"}'
-check "face id correcto" 200 POST /api/v1/auth/login "" '{"bandera":2,"username":"ana.morales@example.com","faceIdBiometrico":987654321098}'
+check "contraseña incorrecta" 401 POST /api/v1/auth/login "" '{"bandera":1,"username":"'"$ANA_CORREO"'","password":"Mala#2026x"}'
+check "bandera inexistente" 400 POST /api/v1/auth/login "" '{"bandera":9,"username":"'"$ANA_CORREO"'","password":"x"}'
+check "face id correcto" 200 POST /api/v1/auth/login "" '{"bandera":2,"username":"'"$ANA_CORREO"'","faceIdBiometrico":'"$ANA_FACEID"'}'
 TA=$(J datos.token)
 
 echo "== Búsqueda dinámica (único endpoint, filtros en el cuerpo)"
 check "sin token" 401 POST /api/v1/clientes/buscar "" '{}'
 check "ejecutivo: todos" 200 POST /api/v1/clientes/buscar "$TE" '{}'
-expect "total de clientes" "$(J datos.totalElementos)" "2"
-check "ejecutivo: por CURP" 200 POST /api/v1/clientes/buscar "$TE" '{"curp":"RASJ850112HPLMLR04"}'
+expect "total de clientes (incluye los 2 de prueba)" "$(J 'datos.totalElementos>=2')" "true"
+check "ejecutivo: por CURP" 200 POST /api/v1/clientes/buscar "$TE" '{"curp":"'"$JORGE_CURP"'"}'
 expect "cliente encontrado por CURP" "$(J 'datos.contenido[0].id')" "$JORGE_ID"
-check "ejecutivo: por RFC + activo" 200 POST /api/v1/clientes/buscar "$TE" '{"rfc":"MOCA920730QW4","activo":true}'
+check "ejecutivo: por RFC + activo" 200 POST /api/v1/clientes/buscar "$TE" '{"rfc":"'"$ANA_RFC"'","activo":true}'
 expect "cliente encontrado por RFC" "$(J 'datos.contenido[0].id')" "$ANA_ID"
-check "ejecutivo: por correo" 200 POST /api/v1/clientes/buscar "$TE" '{"correo":"jorge.ramirez@example.com"}'
+check "ejecutivo: por correo" 200 POST /api/v1/clientes/buscar "$TE" '{"correo":"'"$JORGE_CORREO"'"}'
 expect "cliente encontrado por correo" "$(J datos.totalElementos)" "1"
 check "ejecutivo: por número de cuenta" 200 POST /api/v1/clientes/buscar "$TE" "{\"numeroCuenta\":\"$ANA_CTA\"}"
 expect "cliente encontrado por cuenta" "$(J 'datos.contenido[0].id')" "$ANA_ID"
-check "ejecutivo: por nombre parcial" 200 POST /api/v1/clientes/buscar "$TE" '{"nombre":"ramír"}'
-expect "cliente encontrado por nombre" "$(J 'datos.contenido[0].id')" "$JORGE_ID"
+check "ejecutivo: por nombre parcial" 200 POST /api/v1/clientes/buscar "$TE" '{"nombre":"ramír","tamanio":100}'
+expect "cliente encontrado por nombre" "$(J "datos.contenido.some(c=>c.id==$JORGE_ID)")" "true"
 HOY=$(date +%F)
 check "ejecutivo: rango de fechas + paginación" 200 POST /api/v1/clientes/buscar "$TE" "{\"fechaRegistroDesde\":\"2026-01-01\",\"fechaRegistroHasta\":\"$HOY\",\"pagina\":0,\"tamanio\":1}"
 expect "paginación: elementos por página" "$(J 'datos.contenido.length')" "1"
-expect "paginación: total de páginas" "$(J datos.totalPaginas)" "2"
-check "ejecutivo: filtros combinados sin coincidencias" 200 POST /api/v1/clientes/buscar "$TE" '{"curp":"RASJ850112HPLMLR04","rfc":"MOCA920730QW4"}'
+expect "paginación: una página por cliente" "$(J 'datos.totalPaginas===o.datos.totalElementos && o.datos.totalElementos>=2')" "true"
+check "ejecutivo: filtros combinados sin coincidencias" 200 POST /api/v1/clientes/buscar "$TE" '{"curp":"'"$JORGE_CURP"'","rfc":"'"$ANA_RFC"'"}'
 expect "sin coincidencias: mensaje" "$(J mensaje)" "No se encontraron clientes con los criterios indicados"
 check "filtros inválidos" 400 POST /api/v1/clientes/buscar "$TE" '{"id":0,"curp":"XYZ","numeroCuenta":"12ab","tamanio":500}'
 check "rango de fechas invertido" 400 POST /api/v1/clientes/buscar "$TE" '{"fechaRegistroDesde":"2026-06-30","fechaRegistroHasta":"2026-01-01"}'
@@ -103,12 +113,12 @@ check "filtro inexistente" 400 POST /api/v1/clientes/buscar "$TE" '{"edad":30}'
 check "cliente: búsqueda sin filtros = solo su registro" 200 POST /api/v1/clientes/buscar "$TA" '{}'
 expect "cliente solo ve su registro" "$(J datos.totalElementos):$(J 'datos.contenido[0].id')" "1:$ANA_ID"
 check "cliente: busca el id de otro cliente" 403 POST /api/v1/clientes/buscar "$TA" "{\"id\":$JORGE_ID}"
-check "cliente: busca la CURP de otro cliente (sin resultados)" 200 POST /api/v1/clientes/buscar "$TA" '{"curp":"RASJ850112HPLMLR04"}'
+check "cliente: busca la CURP de otro cliente (sin resultados)" 200 POST /api/v1/clientes/buscar "$TA" '{"curp":"'"$JORGE_CURP"'"}'
 expect "no ve datos de otro cliente" "$(J datos.totalElementos)" "0"
 
 echo "== Cuentas"
 check "ejecutivo: cuentas activas" 200 POST /api/v1/cuentas/buscar "$TE" '{"estatus":"ACTIVA"}'
-expect "cuentas activas" "$(J datos.totalElementos)" "2"
+expect "cuentas activas (incluye las 2 de prueba)" "$(J 'datos.totalElementos>=2')" "true"
 check "cliente: sus cuentas" 200 POST /api/v1/cuentas/buscar "$TA" '{}'
 expect "cliente solo ve su cuenta" "$(J 'datos.contenido[0].cuenta.numeroCuenta')" "$ANA_CTA"
 check "cliente: cuentas de otro cliente" 403 POST /api/v1/cuentas/buscar "$TA" "{\"clienteId\":$JORGE_ID}"
@@ -119,14 +129,14 @@ check "ejecutivo: saldo de cuenta inexistente" 404 POST /api/v1/cuentas/saldo "$
 check "saldo sin número de cuenta" 400 POST /api/v1/cuentas/saldo "$TE" '{}'
 
 echo "== Actualización (id en el cuerpo, campos del servidor protegidos)"
-UPD="{\"id\":$ANA_ID,\"nombre\":\"Ana\",\"apellidoPaterno\":\"Morales\",\"apellidoMaterno\":\"Castillo\",\"sexo\":\"F\",\"nacionalidad\":\"Mexicana\",\"estadoCivil\":\"CASADO\",\"correo\":\"ana.morales@example.com\",\"telefonoMovil\":\"5599887766\",\"ocupacion\":\"Arquitecta\",\"empresa\":\"Constructora\",\"ingresoMensual\":45000,\"domicilio\":{\"calle\":\"Av Patria\",\"numeroExterior\":\"2200\",\"colonia\":\"Centro\",\"municipio\":\"Zapopan\",\"estado\":\"Jalisco\",\"codigoPostal\":\"45110\",\"pais\":\"Mexico\"}}"
+UPD="{\"id\":$ANA_ID,\"nombre\":\"Ana\",\"apellidoPaterno\":\"Morales\",\"apellidoMaterno\":\"Castillo\",\"sexo\":\"F\",\"nacionalidad\":\"Mexicana\",\"estadoCivil\":\"CASADO\",\"correo\":\"$ANA_CORREO\",\"telefonoMovil\":\"5599887766\",\"ocupacion\":\"Arquitecta\",\"empresa\":\"Constructora\",\"ingresoMensual\":45000,\"domicilio\":{\"calle\":\"Av Patria\",\"numeroExterior\":\"2200\",\"colonia\":\"Centro\",\"municipio\":\"Zapopan\",\"estado\":\"Jalisco\",\"codigoPostal\":\"45110\",\"pais\":\"Mexico\"}}"
 check "cliente actualiza su registro" 200 PUT /api/v1/clientes "$TA" "$UPD"
 expect "estado civil actualizado" "$(J datos.estadoCivil)" "CASADO"
 check "intenta modificar CURP/RFC/activo" 400 PUT /api/v1/clientes "$TA" "${UPD%\}},\"curp\":\"XXXX000000HDFXXX00\",\"rfc\":\"XXXX000000XX0\",\"activo\":false}"
 check "actualización sin id" 400 PUT /api/v1/clientes "$TA" '{"nombre":"Ana"}'
 check "cliente actualiza a otro cliente" 403 PUT /api/v1/clientes "$TJ" "$UPD"
-check "ejecutivo actualiza cliente inexistente" 404 PUT /api/v1/clientes "$TE" "${UPD/\"id\":$ANA_ID/\"id\":9999}"
-check "correo de otro cliente" 409 PUT /api/v1/clientes "$TA" "${UPD/ana.morales@example.com/jorge.ramirez@example.com}"
+check "ejecutivo actualiza cliente inexistente" 404 PUT /api/v1/clientes "$TE" "${UPD/\"id\":$ANA_ID/\"id\":999999999}"
+check "correo de otro cliente" 409 PUT /api/v1/clientes "$TA" "${UPD/$ANA_CORREO/$JORGE_CORREO}"
 
 echo "== Layaway banderas 2 y 3"
 check "bandera 2 sin token" 401 POST /api/v1/layaway/cliente "" "{\"bandera\":2,\"clienteId\":$ANA_ID,\"datosContacto\":{\"telefonoMovil\":\"5599887766\"}}"
@@ -145,11 +155,11 @@ check "baja de otro cliente" 403 DELETE /api/v1/clientes "$TA" "{\"id\":$JORGE_I
 check "baja con id inválido" 400 DELETE /api/v1/clientes "$TE" '{"id":-1}'
 check "ejecutivo da de baja a jorge" 200 DELETE /api/v1/clientes "$TE" "{\"id\":$JORGE_ID}"
 expect "cliente inactivo" "$(J datos.activo)" "false"
-check "ejecutivo: clientes activos" 200 POST /api/v1/clientes/buscar "$TE" '{"activo":true}'
-expect "solo queda un cliente activo" "$(J datos.totalElementos)" "1"
-check "ejecutivo: cuentas canceladas" 200 POST /api/v1/cuentas/buscar "$TE" '{"estatus":"CANCELADA"}'
+check "ejecutivo: jorge ya no aparece entre los activos" 200 POST /api/v1/clientes/buscar "$TE" '{"curp":"'"$JORGE_CURP"'","activo":true}'
+expect "jorge activo" "$(J datos.totalElementos)" "0"
+check "ejecutivo: cuentas canceladas de jorge" 200 POST /api/v1/cuentas/buscar "$TE" "{\"estatus\":\"CANCELADA\",\"clienteId\":$JORGE_ID}"
 expect "la cuenta de jorge quedó cancelada" "$(J 'datos.contenido[0].cuenta.numeroCuenta')" "$JORGE_CTA"
-check "jorge dado de baja no inicia sesión" 401 POST /api/v1/auth/login "" '{"bandera":1,"username":"jorge.ramirez85","password":"Jorge$Pass2026"}'
+check "jorge dado de baja no inicia sesión" 401 POST /api/v1/auth/login "" '{"bandera":1,"username":"'"$JORGE_USER"'","password":"Jorge$Pass2026"}'
 
 echo "== Errores generales y configuración"
 check "ruta inexistente" 404 GET / "$TE"
