@@ -1,0 +1,157 @@
+# Pruebas de punta a punta contra Render (https://proyectoapi-1-pt59.onrender.com)
+# Fecha: 2026-10-20 · Despliegue: dep-dbbpeagn3acc73c59hu0 (commit ce8e058) · Script: scripts/pruebas-seguridad-e2e.sh
+
+Datos de prueba: ana=MOCA920730MDFQWB78 / ana.w5q8nn@example.com | jorge=RASJ850112HPLMYGG3 / jorge.w5q8nn
+== Registro (público) y estructura uniforme de éxito
+OK    201  POST   /api/v1/layaway/cliente        alta layaway bandera 1
+OK    respuesta de éxito: codigo = 0
+OK    respuesta de éxito: codigoRespuesta = EXITO
+OK    201  POST   /api/v1/clientes               alta POST /clientes
+   ana id=4 cuenta=4152863117415491 | jorge id=5 cuenta=0259148832549086
+OK    409  POST   /api/v1/clientes               alta duplicada (misma CURP)
+        detalle: La CURP ya se encuentra registrada en el sistema: RASJ850112HPLMYGG3
+OK    400  POST   /api/v1/clientes               alta con campos controlados por el servidor
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"camposNoPermitidos":"No se permiten los campos: activo, numeroCuenta. Son controlados por el servidor o no existen en esta operación"}
+OK    400  POST   /api/v1/clientes               alta con datos inválidos (errores por campo)
+        detalle: La petición tiene 17 campo(s) con errores de validación; revise 'errores'
+        errores: {"apellidoMaterno":"El apellido materno es obligatorio","apellidoPaterno":"El apellido paterno es obligatorio","correo":"El formato del correo electrónico no es válido; El correo electrónico debe tener el formato usuario@dominio.com (con dominio y extensión válidos)","curp":"El formato de la CURP no es válido según el estándar oficial mexicano; La CURP debe contener exactamente 18 caracteres","domicilio":"El domicilio es obligatorio","empresa":"La empresa es obligatoria","estadoCivil":"El estado civil es obligatorio","fechaNacimiento":"La fecha de nacimiento es obligatoria","ingresoMensual":"El ingreso mensual es obligatorio","nacionalidad":"La nacionalidad es obligatoria","nombre":"El nombre solo debe contener letras y espacios","ocupacion":"La ocupación es obligatoria","password":"La contraseña es obligatoria","rfc":"El RFC es obligatorio","sexo":"El sexo es obligatorio","telefonoMovil":"El teléfono móvil debe contener exactamente 10 dígitos numéricos","username":"El nombre de usuario para login es obligatorio"}
+OK    error de validación: codigoRespuesta = ERROR_PARAMETRO_INVALIDO
+OK    error de validación: motivo de la CURP = true
+OK    error de validación: incluye correo y teléfono = true
+OK    400  POST   /api/v1/clientes               alta con cuerpo vacío
+        detalle: El cuerpo de la petición es obligatorio y debe ser un objeto JSON válido
+OK    400  POST   /api/v1/clientes               alta con JSON mal formado
+        detalle: El cuerpo de la petición no es un JSON válido (línea 1, columna 11). Revise comillas, comas y llaves
+OK    400  POST   /api/v1/clientes               alta con tipo de dato inválido
+        detalle: El campo 'ingresoMensual' tiene un tipo de dato o formato inválido
+        errores: {"ingresoMensual":"Debe ser un valor numérico directo (sin comillas)"}
+== Login
+OK    200  POST   /api/v1/auth/login             login ana (correo + contraseña)
+OK    200  POST   /api/v1/auth/login             login jorge (username)
+OK    200  POST   /api/v1/auth/login             login ejecutivo
+OK    401  POST   /api/v1/auth/login             contraseña incorrecta
+        detalle: Usuario o credenciales incorrectas
+OK    400  POST   /api/v1/auth/login             bandera inexistente
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"bandera":"La bandera debe ser 1 (Contraseña) o 2 (Biométrico Face ID)"}
+OK    200  POST   /api/v1/auth/login             face id correcto
+== Búsqueda dinámica (único endpoint, filtros en el cuerpo)
+OK    401  POST   /api/v1/clientes/buscar        sin token
+        detalle: Debe enviar un token de acceso en el encabezado 'Authorization: Bearer <token>'. Obténgalo en POST /api/v1/auth/login
+OK    200  POST   /api/v1/clientes/buscar        ejecutivo: todos
+OK    total de clientes (incluye los 2 de prueba) = true
+OK    200  POST   /api/v1/clientes/buscar        ejecutivo: por CURP
+OK    cliente encontrado por CURP = 5
+OK    200  POST   /api/v1/clientes/buscar        ejecutivo: por RFC + activo
+OK    cliente encontrado por RFC = 4
+OK    200  POST   /api/v1/clientes/buscar        ejecutivo: por correo
+OK    cliente encontrado por correo = 1
+OK    200  POST   /api/v1/clientes/buscar        ejecutivo: por número de cuenta
+OK    cliente encontrado por cuenta = 4
+OK    200  POST   /api/v1/clientes/buscar        ejecutivo: por nombre parcial
+OK    cliente encontrado por nombre = true
+OK    200  POST   /api/v1/clientes/buscar        ejecutivo: rango de fechas + paginación
+OK    paginación: elementos por página = 1
+OK    paginación: una página por cliente = true
+OK    200  POST   /api/v1/clientes/buscar        ejecutivo: filtros combinados sin coincidencias
+OK    sin coincidencias: mensaje = No se encontraron clientes con los criterios indicados
+OK    400  POST   /api/v1/clientes/buscar        filtros inválidos
+        detalle: La petición tiene 4 campo(s) con errores de validación; revise 'errores'
+        errores: {"curp":"La CURP debe contener 18 caracteres con el formato oficial (ej. HELC950815HDFRPR03)","id":"El id del cliente debe ser un número entero mayor a 0","numeroCuenta":"El número de cuenta debe contener exactamente 16 dígitos numéricos","tamanio":"El tamaño de página no debe exceder 100"}
+OK    400  POST   /api/v1/clientes/buscar        rango de fechas invertido
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"rangoFechaRegistroValido":"La fecha de registro inicial no puede ser posterior a la fecha final"}
+OK    400  POST   /api/v1/clientes/buscar        fecha con formato inválido
+        detalle: El campo 'fechaRegistroDesde' tiene un tipo de dato o formato inválido
+        errores: {"fechaRegistroDesde":"Debe ser una fecha con formato YYYY-MM-DD"}
+OK    fecha inválida: campo y formato esperado = Debe ser una fecha con formato YYYY-MM-DD
+OK    400  POST   /api/v1/clientes/buscar        filtro inexistente
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"camposNoPermitidos":"No se permiten los campos: edad. Son controlados por el servidor o no existen en esta operación"}
+OK    200  POST   /api/v1/clientes/buscar        cliente: búsqueda sin filtros = solo su registro
+OK    cliente solo ve su registro = 1:4
+OK    403  POST   /api/v1/clientes/buscar        cliente: busca el id de otro cliente
+        detalle: No tiene permisos para consultar la información de otros clientes
+OK    200  POST   /api/v1/clientes/buscar        cliente: busca la CURP de otro cliente (sin resultados)
+OK    no ve datos de otro cliente = 0
+== Cuentas
+OK    200  POST   /api/v1/cuentas/buscar         ejecutivo: cuentas activas
+OK    cuentas activas (incluye las 2 de prueba) = true
+OK    200  POST   /api/v1/cuentas/buscar         cliente: sus cuentas
+OK    cliente solo ve su cuenta = 4152863117415491
+OK    403  POST   /api/v1/cuentas/buscar         cliente: cuentas de otro cliente
+        detalle: No tiene permisos para consultar cuentas de otros clientes
+OK    400  POST   /api/v1/cuentas/buscar         estatus fuera de catálogo
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"estatus":"El estatus debe ser ACTIVA o CANCELADA"}
+OK    200  POST   /api/v1/cuentas/saldo          cliente: saldo propio
+OK    403  POST   /api/v1/cuentas/saldo          cliente: saldo de otro cliente
+        detalle: No tiene permisos para consultar la cuenta solicitada
+OK    404  POST   /api/v1/cuentas/saldo          ejecutivo: saldo de cuenta inexistente
+        detalle: No se encontró la cuenta bancaria con número: 4152000000000000
+OK    400  POST   /api/v1/cuentas/saldo          saldo sin número de cuenta
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"numeroCuenta":"El número de cuenta es obligatorio"}
+== Actualización (id en el cuerpo, campos del servidor protegidos)
+OK    200  PUT    /api/v1/clientes               cliente actualiza su registro
+OK    estado civil actualizado = CASADO
+OK    400  PUT    /api/v1/clientes               intenta modificar CURP/RFC/activo
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"camposNoPermitidos":"No se permiten los campos: curp, rfc, activo. Son controlados por el servidor o no existen en esta operación"}
+OK    400  PUT    /api/v1/clientes               actualización sin id
+        detalle: La petición tiene 12 campo(s) con errores de validación; revise 'errores'
+        errores: {"apellidoMaterno":"El apellido materno es obligatorio","apellidoPaterno":"El apellido paterno es obligatorio","correo":"El correo electrónico es obligatorio","domicilio":"El domicilio es obligatorio","empresa":"La empresa es obligatoria","estadoCivil":"El estado civil es obligatorio","id":"El id del cliente es obligatorio","ingresoMensual":"El ingreso mensual es obligatorio","nacionalidad":"La nacionalidad es obligatoria","ocupacion":"La ocupación es obligatoria","sexo":"El sexo es obligatorio","telefonoMovil":"El teléfono móvil es obligatorio"}
+OK    403  PUT    /api/v1/clientes               cliente actualiza a otro cliente
+        detalle: No tiene permisos para acceder a la información del cliente solicitado
+OK    404  PUT    /api/v1/clientes               ejecutivo actualiza cliente inexistente
+        detalle: No se encontró el cliente con ID: 999999999
+OK    409  PUT    /api/v1/clientes               correo de otro cliente
+        detalle: El correo electrónico ya se encuentra registrado por otro cliente: jorge.w5q8nn@example.com
+== Layaway banderas 2 y 3
+OK    401  POST   /api/v1/layaway/cliente        bandera 2 sin token
+        detalle: Debe iniciar sesión y enviar el token en el encabezado 'Authorization: Bearer <token>'
+OK    400  POST   /api/v1/layaway/cliente        bandera 2 sin clienteId
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"clienteIdPresenteSiSeRequiere":"El clienteId es obligatorio para las banderas 2 (Actualizar) y 3 (Eliminar)"}
+OK    403  POST   /api/v1/layaway/cliente        bandera 2 a otro cliente
+        detalle: No tiene permisos para acceder a la información del cliente solicitado
+OK    200  POST   /api/v1/layaway/cliente        bandera 2 propia
+OK    400  POST   /api/v1/layaway/cliente        bandera sin valor
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"bandera":"La bandera de operación es obligatoria (1 = Insertar, 2 = Actualizar, 3 = Eliminar)"}
+== Sesión y baja lógica
+OK    200  POST   /api/v1/auth/sesion/verificar  verificar sesión (sin cuerpo)
+OK    200  POST   /api/v1/auth/sesion/verificar  verificar sesión con timeout
+OK    400  POST   /api/v1/auth/sesion/verificar  timeout inválido
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"timeoutDinamico":"El tiempo de inactividad debe ser mayor a 0 segundos"}
+OK    200  POST   /api/v1/auth/logout            logout de jorge
+OK    401  POST   /api/v1/clientes/buscar        token de jorge tras logout
+        detalle: La sesión fue cerrada o expiró. Inicie sesión nuevamente en POST /api/v1/auth/login
+OK    403  DELETE /api/v1/clientes               baja de otro cliente
+        detalle: No tiene permisos para acceder a la información del cliente solicitado
+OK    400  DELETE /api/v1/clientes               baja con id inválido
+        detalle: La petición tiene 1 campo(s) con errores de validación; revise 'errores'
+        errores: {"id":"El id del cliente debe ser un número entero mayor a 0"}
+OK    200  DELETE /api/v1/clientes               ejecutivo da de baja a jorge
+OK    cliente inactivo = false
+OK    200  POST   /api/v1/clientes/buscar        ejecutivo: jorge ya no aparece entre los activos
+OK    jorge activo = 0
+OK    200  POST   /api/v1/cuentas/buscar         ejecutivo: cuentas canceladas de jorge
+OK    la cuenta de jorge quedó cancelada = 0259148832549086
+OK    401  POST   /api/v1/auth/login             jorge dado de baja no inicia sesión
+        detalle: El cliente se encuentra dado de baja y no puede iniciar sesión
+== Errores generales y configuración
+OK    404  GET    /                              ruta inexistente
+        detalle: No existe el recurso GET /. Consulte la documentación en /swagger-ui.html
+OK    405  GET    /api/v1/clientes/buscar        método no permitido
+        detalle: El método GET no está permitido para este recurso. Métodos permitidos: [POST]
+OK    415  POST   /api/v1/auth/login             Content-Type no soportado
+        detalle: La petición no indica el tipo de contenido. Envíe el cuerpo en JSON con 'Content-Type: application/json'
+OK    200  GET    /actuator/health               health público
+OK    404  GET    /actuator/env                  actuator env no expuesto
+        detalle: No existe el recurso GET /actuator/env. Consulte la documentación en /swagger-ui.html
+OK    200  GET    /v3/api-docs                   swagger público
+
+RESULTADO: 89 OK, 0 fallas
