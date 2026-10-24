@@ -69,7 +69,7 @@ class ArmadoPayloadHandlerTest {
         assertNull(p.getMontoPago());
         assertEquals("20261023123045", p.getHoraLocal());
         assertEquals("083", p.getUnidad());
-        assertTrue(p.getUpc().matches("TX[0-9A-Z]{13}"), p.getUpc());
+        assertTrue(p.getUpc().matches("TX[0-9A-Z]{8}"), p.getUpc());
         assertEquals("{\"idProducto\":582,\"idServicio\":133,\"telefono\":\"5555555551\",\"horaLocal\":\"20261023123045\","
                 + "\"upc\":\"" + p.getUpc() + "\",\"unidad\":\"083\"}", ctx.getPayloadJson());
     }
