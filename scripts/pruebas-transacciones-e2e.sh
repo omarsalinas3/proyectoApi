@@ -135,7 +135,7 @@ UPC=$(J errores.upc)
 if [ -n "$UPC" ]; then
   expect "estatus pendiente" "$(J codigoRespuesta)" "ERROR_TRANSACCION_PENDIENTE"
   check "confirmar antes de 62 s" 422 POST /api/v1/transacciones/confirmar "$TC" "{\"upc\":\"$UPC\"}"
-  check "confirmar UPC inexistente" 404 POST /api/v1/transacciones/confirmar "$TC" '{"upc":"TXNOEXISTE00000"}'
+  check "confirmar UPC inexistente" 404 POST /api/v1/transacciones/confirmar "$TC" '{"upc":"TXNOEXIST0"}'
   echo "   esperando 63 s para confirmTx..."
   sleep 63
   check "confirmTx tras 62 s" "200 422 504" POST /api/v1/transacciones/confirmar "$TC" "{\"upc\":\"$UPC\"}"

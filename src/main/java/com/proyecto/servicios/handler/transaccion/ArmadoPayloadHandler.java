@@ -31,7 +31,7 @@ import java.util.Set;
  *   <li>Pagos de servicios como luz o agua ({@code tipoFront} 2): el teléfono va fijo en "1111111111" y se envían
  *   la {@code referencia} del recibo y el {@code montoPago}.</li>
  *   <li>{@code idCatTipoServicio} 10 u 11: el teléfono va fijo en "#1111111111".</li>
- *   <li>{@code horaLocal}: yyyyMMddHHmmss generada en el servidor; {@code upc}: único por operación (15
+ *   <li>{@code horaLocal}: yyyyMMddHHmmss generada en el servidor; {@code upc}: único por operación (10
  *   caracteres); {@code unidad}: sucursal configurada (3 a 25).</li>
  * </ul>
  *
@@ -48,6 +48,7 @@ public class ArmadoPayloadHandler implements PasoTransaccionHandler {
 
     private static final DateTimeFormatter FORMATO_HORA_LOCAL = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final String PREFIJO_UPC = "TX";
+    static final int LONGITUD_UPC = 10;
     private static final String ALFABETO_UPC = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     private final ProductoCatalogoRepository productoRepository;
@@ -147,7 +148,7 @@ public class ArmadoPayloadHandler implements PasoTransaccionHandler {
         String upc;
         do {
             StringBuilder sb = new StringBuilder(PREFIJO_UPC);
-            while (sb.length() < SendTxPayload.UPC_MAX) {
+            while (sb.length() < LONGITUD_UPC) {
                 sb.append(ALFABETO_UPC.charAt(random.nextInt(ALFABETO_UPC.length())));
             }
             upc = sb.toString();

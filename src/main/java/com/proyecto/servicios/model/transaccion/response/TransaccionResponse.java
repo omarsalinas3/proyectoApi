@@ -24,7 +24,7 @@ import java.math.BigDecimal;
 @Schema(description = "Resultado de la transacción")
 public class TransaccionResponse {
 
-    @Schema(description = "Identificador único de la operación (UPC)", example = "TX4K9Z2M7Q1A8B3")
+    @Schema(description = "Identificador único de la operación (UPC)", example = "TX4K9Z2M7Q")
     private String upc;
 
     @Schema(description = "Estatus de la transacción", example = "EXITOSA")

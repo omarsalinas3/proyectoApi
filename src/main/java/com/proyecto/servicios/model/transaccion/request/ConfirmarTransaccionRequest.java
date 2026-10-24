@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 @Schema(description = "UPC de la transacción pendiente de confirmación")
 public class ConfirmarTransaccionRequest extends RequestEstricto {
 
-    @Schema(description = "UPC devuelto al enviar la transacción", example = "TX4K9Z2M7Q1A8B3", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "UPC devuelto al enviar la transacción", example = "TX4K9Z2M7Q", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "El UPC es obligatorio")
     @Pattern(regexp = "^[A-Za-z0-9_]{3,15}$", message = "El UPC debe tener entre 3 y 15 caracteres alfanuméricos")
     private String upc;
