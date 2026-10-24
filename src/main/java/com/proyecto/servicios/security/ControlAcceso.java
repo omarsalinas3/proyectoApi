@@ -115,4 +115,15 @@ public class ControlAcceso {
         filtros.setClienteId(usuario.clienteId());
         return filtros;
     }
+
+    /**
+     * Restringe la operación al rol EJECUTIVO (ej. depósitos a cuentas).
+     */
+    public void validarRolEjecutivo() {
+        UsuarioAutenticado usuario = usuarioActual();
+        if (!usuario.esEjecutivo()) {
+            log.warn("Acceso denegado: el cliente {} intentó una operación reservada para ejecutivos", usuario.clienteId());
+            throw new AccesoDenegadoException("Esta operación está reservada para ejecutivos de la institución");
+        }
+    }
 }

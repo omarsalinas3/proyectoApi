@@ -2,6 +2,7 @@ package com.proyecto.servicios.service.Impl;
 
 import com.proyecto.servicios.entity.cliente.CuentaEntity;
 import com.proyecto.servicios.entity.cliente.SaldoEntity;
+import com.proyecto.servicios.exception.ClienteInactivoException;
 import com.proyecto.servicios.exception.CuentaNoEncontradaException;
 import com.proyecto.servicios.mapper.ClienteMapper;
 import com.proyecto.servicios.model.cliente.request.CuentaBusquedaRequest;
@@ -20,6 +21,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -74,5 +77,24 @@ public class CuentaServiceImpl implements CuentaService {
         } while (existe);
 
         return numeroCuenta;
+    }
+
+    @Override
+    @Transactional
+    public SaldoResponse depositar(String numeroCuenta, BigDecimal monto) {
+        CuentaEntity cuenta = cuentaRepository.findByNumeroCuentaParaActualizar(numeroCuenta.trim())
+                .orElseThrow(() -> new CuentaNoEncontradaException("No se encontró la cuenta bancaria con número: " + numeroCuenta));
+        if (!"ACTIVA".equals(cuenta.getEstatus())) {
+            throw new ClienteInactivoException("La cuenta " + numeroCuenta + " está en estatus " + cuenta.getEstatus()
+                    + " y no puede recibir depósitos");
+        }
+        BigDecimal abono = monto.setScale(2, RoundingMode.HALF_UP);
+        cuenta.setSaldoDisponible(cuenta.getSaldoDisponible().add(abono));
+        SaldoEntity saldo = saldoRepository.findByCuentaId(cuenta.getId())
+                .orElseThrow(() -> new CuentaNoEncontradaException("No se encontró registro de saldos para la cuenta: " + numeroCuenta));
+        saldo.setSaldoActual(saldo.getSaldoActual().add(abono));
+        saldo.setSaldoDisponible(saldo.getSaldoDisponible().add(abono));
+        log.info("Depósito de ${} a la cuenta {}", abono, numeroCuenta);
+        return clienteMapper.toSaldoResponse(saldo);
     }
 }

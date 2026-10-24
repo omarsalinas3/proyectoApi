@@ -103,6 +103,30 @@ public enum CodigoRespuestaEnum {
 
     ERROR_CONFLICTO_DATOS(47, "La operación viola una restricción de integridad de datos"),
 
+    // ─────────────────────────────
+    //  TRANSACCIONES GESTOPAGO
+    // ─────────────────────────────
+
+    ERROR_CLIENTE_INACTIVO(50, "El cliente o su cuenta no están activos para operar"),
+
+    ERROR_SALDO_INSUFICIENTE(51, "Saldo insuficiente para realizar la operación"),
+
+    ERROR_2FA_INVALIDO(52, "El código de verificación (2FA) no es válido"),
+
+    ERROR_2FA_NO_CONFIGURADO(53, "El segundo factor de autenticación (2FA) no está activado"),
+
+    ERROR_PRODUCTO_NO_DISPONIBLE(54, "El producto o servicio no está disponible"),
+
+    ERROR_CIFRADO(55, "Error al cifrar la petición al procesador de pagos"),
+
+    ERROR_TOKEN_PROVEEDOR(56, "No fue posible autenticarse con el procesador de pagos"),
+
+    ERROR_TRANSACCION_RECHAZADA(57, "La transacción fue rechazada por el procesador de pagos"),
+
+    ERROR_TRANSACCION_PENDIENTE(58, "La transacción está pendiente de confirmación"),
+
+    ERROR_TRANSACCION_NO_ENCONTRADA(59, "Transacción no encontrada"),
+
     /** Error interno del servidor (condición inesperada no controlada). */
     ERROR_INTERNO(99, "Error interno del servidor");
 

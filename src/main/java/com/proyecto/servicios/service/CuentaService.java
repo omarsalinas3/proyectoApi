@@ -36,4 +36,14 @@ public interface CuentaService {
      * @return número de cuenta único.
      */
     String generarNumeroCuentaUnico();
+
+    /**
+     * Abona saldo a una cuenta activa.
+     *
+     * @param numeroCuenta número de cuenta de 16 dígitos.
+     * @param monto        monto a abonar (mayor a 0).
+     * @return saldo actualizado.
+     * @throws com.proyecto.servicios.exception.CuentaNoEncontradaException si la cuenta no existe.
+     */
+    SaldoResponse depositar(String numeroCuenta, java.math.BigDecimal monto);
 }

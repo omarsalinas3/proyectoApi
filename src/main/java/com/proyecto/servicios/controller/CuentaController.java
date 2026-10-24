@@ -2,6 +2,7 @@ package com.proyecto.servicios.controller;
 
 import com.proyecto.servicios.model.cliente.request.CuentaBusquedaRequest;
 import com.proyecto.servicios.model.cliente.request.CuentaSaldoRequest;
+import com.proyecto.servicios.model.cliente.request.DepositoRequest;
 import com.proyecto.servicios.model.cliente.response.CuentaResponse;
 import com.proyecto.servicios.model.cliente.response.SaldoResponse;
 import com.proyecto.servicios.model.common.PaginaResponse;
@@ -78,5 +79,22 @@ public class CuentaController {
         controlAcceso.validarRecursoPropio(c -> PatronesValidacion.esCuentaDe(c, numeroCuenta), "la cuenta solicitada");
         SaldoResponse saldo = cuentaService.consultarSaldoPorNumeroCuenta(numeroCuenta);
         return ResponseEntity.ok(RespuestaApi.exito("Saldo consultado exitosamente", saldo));
+    }
+
+    @Operation(summary = "Depositar saldo a una cuenta (solo ejecutivo)",
+            description = "Abona saldo a una cuenta activa para que el cliente pueda realizar transacciones.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Depósito aplicado"),
+            @ApiResponse(responseCode = "404", description = "Cuenta no encontrada",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class))),
+            @ApiResponse(responseCode = "422", description = "La cuenta no está activa",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class)))
+    })
+    @PostMapping(value = "/deposito", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<RespuestaApi<SaldoResponse>> depositar(@Valid @RequestBody DepositoRequest request) {
+        log.info("Petición POST /api/v1/cuentas/deposito");
+        controlAcceso.validarRolEjecutivo();
+        SaldoResponse saldo = cuentaService.depositar(request.getNumeroCuenta(), request.getMonto());
+        return ResponseEntity.ok(RespuestaApi.exito("Depósito aplicado exitosamente", saldo));
     }
 }

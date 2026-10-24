@@ -74,4 +74,23 @@ public class LoginEntity implements Serializable {
     @CreationTimestamp
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
     private OffsetDateTime fechaCreacion;
+
+    /**
+     * Secreto TOTP (RFC 6238) del segundo factor, cifrado con AES. Nulo mientras no se active el 2FA.
+     */
+    @Column(name = "totp_secreto_cifrado", length = 255)
+    private String totpSecretoCifrado;
+
+    /**
+     * Indica si el cliente ya confirmó su aplicación de autenticación (requisito para operar transacciones).
+     */
+    @Column(name = "totp_activo", nullable = false)
+    @Builder.Default
+    private Boolean totpActivo = false;
+
+    /**
+     * Último intervalo TOTP de 30 s aceptado; impide reutilizar el mismo código.
+     */
+    @Column(name = "totp_ultimo_paso")
+    private Long totpUltimoPaso;
 }

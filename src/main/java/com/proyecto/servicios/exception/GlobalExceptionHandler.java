@@ -227,6 +227,102 @@ public class GlobalExceptionHandler {
     }
 
     // ─────────────────────────────
+    // TRANSACCIONES GESTOPAGO (un handler por nodo del flujo)
+    // ─────────────────────────────
+
+    /**
+     * Nodo «Cliente Activo»: cliente dado de baja o cuenta no ACTIVA.
+     */
+    @ExceptionHandler(ClienteInactivoException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleClienteInactivo(ClienteInactivoException ex) {
+        log.warn("Transacción rechazada por estatus del cliente/cuenta: {}", ex.getMessage());
+        return construir(CodigoRespuestaEnum.ERROR_CLIENTE_INACTIVO, ex.getMessage(), null, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * Nodo «Saldo»: fondos insuficientes.
+     */
+    @ExceptionHandler(SaldoInsuficienteException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleSaldoInsuficiente(SaldoInsuficienteException ex) {
+        log.warn("Transacción rechazada por saldo: {}", ex.getMessage());
+        return construir(CodigoRespuestaEnum.ERROR_SALDO_INSUFICIENTE, ex.getMessage(), null, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * Nodo «2FA»: código incorrecto, expirado o reutilizado.
+     */
+    @ExceptionHandler(DosFactoresInvalidoException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleDosFactoresInvalido(DosFactoresInvalidoException ex) {
+        return construir(CodigoRespuestaEnum.ERROR_2FA_INVALIDO, ex.getMessage(),
+                Map.of("codigo2fa", "Código incorrecto, expirado o ya utilizado"), HttpStatus.FORBIDDEN);
+    }
+
+    /**
+     * Nodo «2FA»: el cliente aún no activa su segundo factor.
+     */
+    @ExceptionHandler(DosFactoresNoConfiguradoException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleDosFactoresNoConfigurado(DosFactoresNoConfiguradoException ex) {
+        return construir(CodigoRespuestaEnum.ERROR_2FA_NO_CONFIGURADO, ex.getMessage(), null, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * Nodo «Sen Tx»: producto inexistente en el catálogo, monto distinto al precio o longitudes fuera de rango.
+     */
+    @ExceptionHandler(ProductoNoDisponibleException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleProductoNoDisponible(ProductoNoDisponibleException ex) {
+        log.warn("Transacción rechazada por producto: {}", ex.getMessage());
+        return construir(CodigoRespuestaEnum.ERROR_PRODUCTO_NO_DISPONIBLE, ex.getMessage(), null, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * Nodo «Cifrar Petición»: falla criptográfica (configuración de llave/IV). No se envió nada a GestoPago.
+     */
+    @ExceptionHandler(CifradoGestoPagoException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleCifrado(CifradoGestoPagoException ex) {
+        log.error("Error de cifrado GestoPago: ", ex);
+        return construir(CodigoRespuestaEnum.ERROR_CIFRADO,
+                "No fue posible preparar la petición segura al procesador de pagos; la operación no se envió",
+                null, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * Nodo «Obtener Token»: GestoPago no entregó o rechazó el token de autorización.
+     */
+    @ExceptionHandler(TokenGestoPagoException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleTokenGestoPago(TokenGestoPagoException ex) {
+        log.error("Token GestoPago no disponible: {}", ex.getMessage());
+        return construir(CodigoRespuestaEnum.ERROR_TOKEN_PROVEEDOR, ex.getMessage(), null, HttpStatus.BAD_GATEWAY);
+    }
+
+    /**
+     * Nodo «Sen Tx Cifrado + Token»: GestoPago respondió un código de error (el monto ya fue liberado).
+     */
+    @ExceptionHandler(TransaccionRechazadaException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleTransaccionRechazada(TransaccionRechazadaException ex) {
+        log.warn("Transacción {} rechazada por GestoPago (código {})", ex.getUpc(), ex.getCodigoProveedor());
+        return construir(CodigoRespuestaEnum.ERROR_TRANSACCION_RECHAZADA, ex.getMessage(),
+                Map.of("upc", ex.getUpc(), "codigoProveedor", ex.getCodigoProveedor()), HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * Nodo «Sen Tx Cifrado + Token»: sin resultado confirmado (timeout); se debe consultar confirmTx.
+     */
+    @ExceptionHandler(TransaccionPendienteException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleTransaccionPendiente(TransaccionPendienteException ex) {
+        log.warn("Transacción {} pendiente de confirmación", ex.getUpc());
+        return construir(CodigoRespuestaEnum.ERROR_TRANSACCION_PENDIENTE, ex.getMessage(),
+                Map.of("upc", ex.getUpc()), HttpStatus.GATEWAY_TIMEOUT);
+    }
+
+    /**
+     * UPC inexistente (o de otro cliente) al confirmar.
+     */
+    @ExceptionHandler(TransaccionNoEncontradaException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleTransaccionNoEncontrada(TransaccionNoEncontradaException ex) {
+        return construir(CodigoRespuestaEnum.ERROR_TRANSACCION_NO_ENCONTRADA, ex.getMessage(), null, HttpStatus.NOT_FOUND);
+    }
+
+    // ─────────────────────────────
     // HTTP - RUTA, MÉTODO Y CONTENIDO
     // ─────────────────────────────
 

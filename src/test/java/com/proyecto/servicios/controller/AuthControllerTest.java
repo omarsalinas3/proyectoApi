@@ -32,6 +32,9 @@ class AuthControllerTest {
     @Mock
     private ControlAcceso controlAcceso;
 
+    @Mock
+    private com.proyecto.servicios.service.DosFactoresService dosFactoresService;
+
     @InjectMocks
     private AuthController authController;
 
