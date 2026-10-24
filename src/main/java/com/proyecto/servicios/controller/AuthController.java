@@ -1,11 +1,14 @@
 package com.proyecto.servicios.controller;
 
+import com.proyecto.servicios.model.cliente.request.DosFactoresCodigoRequest;
 import com.proyecto.servicios.model.cliente.request.LoginRequest;
 import com.proyecto.servicios.model.cliente.request.VerificarSesionRequest;
+import com.proyecto.servicios.model.cliente.response.DosFactoresResponse;
 import com.proyecto.servicios.model.cliente.response.LoginResponse;
 import com.proyecto.servicios.model.common.RespuestaApi;
 import com.proyecto.servicios.security.ControlAcceso;
 import com.proyecto.servicios.service.AuthService;
+import com.proyecto.servicios.service.DosFactoresService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -36,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final DosFactoresService dosFactoresService;
     private final ControlAcceso controlAcceso;
 
     @Operation(
@@ -90,5 +94,36 @@ public class AuthController {
     public ResponseEntity<RespuestaApi<LoginResponse>> logout() {
         LoginResponse sesion = authService.logout(controlAcceso.usuarioActual());
         return ResponseEntity.ok(RespuestaApi.exito("Cierre de sesión exitoso", sesion));
+    }
+
+    @Operation(
+            summary = "Iniciar la activación del segundo factor (2FA)",
+            description = "Genera el secreto TOTP del cliente. Agréguelo a Google Authenticator / Microsoft Authenticator "
+                    + "escaneando la URI como QR o capturando el secreto, y luego confirme con POST /api/v1/auth/2fa/confirmar. "
+                    + "El código de 6 dígitos que muestre la app se envía en cada transacción."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Secreto generado; el 2FA queda inactivo hasta confirmarlo"),
+            @ApiResponse(responseCode = "422", description = "El 2FA ya está activo",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class)))
+    })
+    @PostMapping(value = "/2fa/activar", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<RespuestaApi<DosFactoresResponse>> activarDosFactores() {
+        DosFactoresResponse dosFactores = dosFactoresService.iniciarActivacion(controlAcceso.usuarioActual());
+        return ResponseEntity.ok(RespuestaApi.exito(
+                "Agregue el secreto a su app de autenticación y confirme con el código que muestre", dosFactores));
+    }
+
+    @Operation(summary = "Confirmar la activación del segundo factor (2FA)",
+            description = "Activa el 2FA tras validar un código vigente generado con el secreto recién entregado.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "2FA activado"),
+            @ApiResponse(responseCode = "403", description = "Código incorrecto o expirado",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RespuestaApi.class)))
+    })
+    @PostMapping(value = "/2fa/confirmar", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<RespuestaApi<DosFactoresResponse>> confirmarDosFactores(@Valid @RequestBody DosFactoresCodigoRequest request) {
+        DosFactoresResponse dosFactores = dosFactoresService.confirmarActivacion(controlAcceso.usuarioActual(), request.getCodigo());
+        return ResponseEntity.ok(RespuestaApi.exito("Segundo factor activado; ya puede realizar transacciones", dosFactores));
     }
 }

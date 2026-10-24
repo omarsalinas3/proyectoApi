@@ -29,12 +29,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Period;
+import java.time.ZoneId;
 
 /**
  * Implementación de la lógica de negocio para el Onboarding y ciclo de vida de Clientes Personas Físicas.
@@ -65,6 +67,9 @@ public class ClienteServiceImpl implements ClienteService {
     private final CryptoService cryptoService;
     private final BiometricService biometricService;
     private final ClienteMapper clienteMapper;
+
+    @Value("${app.zona-horaria:America/Mexico_City}")
+    private ZoneId zonaHoraria;
 
     @Override
     @Transactional
@@ -252,7 +257,7 @@ public class ClienteServiceImpl implements ClienteService {
                 filtros.getId(), filtros.getActivo(), filtros.getFechaRegistroDesde(), filtros.getFechaRegistroHasta(),
                 filtros.getPagina(), filtros.getTamanio());
         PageRequest pagina = PageRequest.of(filtros.getPagina(), filtros.getTamanio(), Sort.by(Sort.Direction.ASC, "id"));
-        Page<UsuarioEntity> resultado = usuarioRepository.findAll(UsuarioSpecifications.conFiltros(filtros), pagina);
+        Page<UsuarioEntity> resultado = usuarioRepository.findAll(UsuarioSpecifications.conFiltros(filtros, zonaHoraria), pagina);
         return PaginaResponse.de(resultado, clienteMapper::entityToResponse);
     }
 }

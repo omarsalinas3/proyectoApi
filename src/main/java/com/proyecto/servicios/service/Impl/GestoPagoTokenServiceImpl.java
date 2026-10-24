@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
@@ -30,6 +31,9 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
     @Value("${gestopago.auth.password}")
     private String password;
 
+    @Value("${gestopago.auth.vigencia-horas:23}")
+    private long vigenciaHoras;
+
     public GestoPagoTokenServiceImpl(GestoPagoAuthClient gestoPagoAuthClient,
                                      GestoPagoTokenRepository tokenRepository,
                                      GestoPagoTokenMapper tokenMapper) {
@@ -39,7 +43,6 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
     }
 
     @Override
-    @Scheduled(fixedRateString = "${gestopago.auth.refresh-rate-ms:3600000}", initialDelay = 0)
     public void renovarToken() {
         log.info("Renovando token GestoPago para distribuidor={}", idDistribuidor);
         try {
@@ -73,14 +76,34 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
         }
     }
 
+    /**
+     * Revisión periódica: solo pide un token nuevo si no existe o ya superó su vigencia. GestoPago exige obtener un
+     * token por día (dura 24 h) y prohíbe pedir uno por cada petición, así que reiniciar la aplicación no lo renueva.
+     */
+    @Scheduled(fixedRateString = "${gestopago.auth.refresh-rate-ms:3600000}", initialDelay = 0)
+    public void verificarVigenciaToken() {
+        Optional<GestoPagoToken> actual = tokenRepository.findByIdDistribuidorAndCodigoDispositivo(idDistribuidor, codigoDispositivo);
+        if (actual.isEmpty() || !estaVigente(actual.get())) {
+            renovarToken();
+        } else {
+            log.debug("Token GestoPago vigente; no se renueva");
+        }
+    }
+
     @Override
     public Optional<GestoPagoToken> obtenerTokenActivo(Integer idDistribuidor, String codigoDispositivo) {
         Optional<GestoPagoToken> tokenOpt = tokenRepository.findByIdDistribuidorAndCodigoDispositivo(idDistribuidor, codigoDispositivo);
-        if (tokenOpt.isEmpty() || tokenOpt.get().getToken() == null || tokenOpt.get().getToken().isBlank()) {
-            log.info("No se encontró token activo en BD para distribuidor={}. Ejecutando renovación inmediata...", idDistribuidor);
+        if (tokenOpt.isEmpty() || !estaVigente(tokenOpt.get())) {
+            log.info("No hay token GestoPago vigente para distribuidor={}. Ejecutando renovación inmediata...", idDistribuidor);
             renovarToken();
             return tokenRepository.findByIdDistribuidorAndCodigoDispositivo(idDistribuidor, codigoDispositivo);
         }
         return tokenOpt;
+    }
+
+    private boolean estaVigente(GestoPagoToken token) {
+        LocalDateTime emitido = token.getFechaActualizacion() != null ? token.getFechaActualizacion() : token.getFechaCreacion();
+        return token.getToken() != null && !token.getToken().isBlank() && Boolean.TRUE.equals(token.getActivo())
+                && emitido != null && emitido.isAfter(LocalDateTime.now().minusHours(vigenciaHoras));
     }
 }

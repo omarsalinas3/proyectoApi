@@ -63,11 +63,11 @@ class ReglasControladoresTest {
     }
 
     @Test
-    @DisplayName("Todo @RequestBody de los módulos de clientes, cuentas y autenticación se valida con @Valid")
+    @DisplayName("Todo @RequestBody de clientes, cuentas, autenticación y transacciones se valida con @Valid")
     void requestBodyConValid() throws Exception {
         List<String> infracciones = new ArrayList<>();
         for (Class<?> controlador : List.of(ClienteController.class, CuentaController.class, AuthController.class,
-                LayawayClienteController.class)) {
+                LayawayClienteController.class, TransaccionController.class)) {
             for (Method metodo : endpoints(controlador)) {
                 for (Parameter parametro : metodo.getParameters()) {
                     if (parametro.isAnnotationPresent(RequestBody.class) && !parametro.isAnnotationPresent(Valid.class)) {

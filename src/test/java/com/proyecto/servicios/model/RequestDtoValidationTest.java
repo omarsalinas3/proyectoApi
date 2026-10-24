@@ -123,4 +123,30 @@ class RequestDtoValidationTest {
         assertTrue(errores.containsKey("bandera"));
         assertTrue(errores.containsKey("faceIdBiometrico"));
     }
+
+    @Test
+    @DisplayName("Transacción: valida cuenta, ids, monto, longitudes de teléfono/referencia y el 2FA (alias \"2fa\")")
+    void transaccionValidaciones() throws Exception {
+        com.proyecto.servicios.model.transaccion.request.TransaccionRequest valida = mapper.readValue(
+                "{\"numCuenta\":\"4152000000000001\",\"idServicio\":133,\"idProducto\":582,\"monto\":10,"
+                        + "\"telefono\":\"5555555551\",\"2fa\":\"123456\"}",
+                com.proyecto.servicios.model.transaccion.request.TransaccionRequest.class);
+        assertTrue(errores(valida).isEmpty(), errores(valida).toString());
+        assertEquals("123456", valida.getCodigo2fa());
+
+        Map<String, String> errores = errores(com.proyecto.servicios.model.transaccion.request.TransaccionRequest.builder()
+                .numCuenta("123").idServicio(0).idProducto(-1L).monto(new java.math.BigDecimal("10.555"))
+                .telefono("55-55").referencia("ref con espacios").codigo2fa("12a").build());
+        assertEquals(java.util.Set.of("numCuenta", "idServicio", "idProducto", "monto", "telefono", "referencia", "codigo2fa"),
+                errores.keySet(), errores.toString());
+    }
+
+    @Test
+    @DisplayName("Transacción: exige teléfono (recarga) o referencia (pago de servicio)")
+    void transaccionTelefonoOReferencia() {
+        Map<String, String> errores = errores(com.proyecto.servicios.model.transaccion.request.TransaccionRequest.builder()
+                .numCuenta("4152000000000001").idServicio(76).idProducto(205L).monto(java.math.BigDecimal.TEN)
+                .codigo2fa("123456").build());
+        assertTrue(errores.get("telefonoOReferencia").contains("luz o agua"), errores.toString());
+    }
 }
