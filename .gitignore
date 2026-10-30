@@ -41,3 +41,12 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+### Certificados TLS locales (llaves privadas: nunca se versionan) ###
+certs/
+*.p12
+*.jks
+*.key
+
+### Secretos locales (los valores reales nunca se versionan) ###
+config/secretos-locales.properties
+.env

@@ -16,6 +16,7 @@ import com.proyecto.servicios.model.producto.response.ProductoListResponse;
 import com.proyecto.servicios.model.producto.xml.ResponseXml;
 import com.proyecto.servicios.repositorys.producto.ProductoCatalogoRepository;
 import com.proyecto.servicios.service.ProductoService;
+import com.proyecto.servicios.util.OcultadorDatosSensibles;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Unmarshaller;
@@ -68,6 +69,12 @@ public class ProductoServiceImpl implements ProductoService {
     @Value("${catalogo.redis.ttl-hours:24}")
     private long redisTtlHours;
 
+    @Value("${catalogo.gestopago.intervalo-minimo-horas:12}")
+    private long intervaloMinimoHoras;
+
+    private final Object candadoConsultaRemota = new Object();
+    private volatile LocalDateTime ultimaConsultaRemota;
+
     @Autowired
     public ProductoServiceImpl(
             ProductosClient productosClient,
@@ -96,9 +103,62 @@ public class ProductoServiceImpl implements ProductoService {
     public static final Predicate<ProductoItemDTO> esTipoFront2 = esTipoFront(2);
     public static final Predicate<ProductoItemDTO> esTipoFront3 = esTipoFront(3);
 
+    /**
+     * Devuelve el catálogo consultando a GestoPago como máximo una vez por intervalo.
+     *
+     * <p>GestoPago bloquea la IP si {@code getProductList.do} se llama más de 3 veces al día, así que dentro del
+     * intervalo se responde desde Redis o PostgreSQL. La consulta remota se serializa para que varias peticiones
+     * simultáneas con el catálogo vencido no generen varias llamadas.</p>
+     */
     @Override
     public ProductoListResponse consultarListaProductos() {
+        ProductoListResponse local = catalogoLocalVigente();
+        if (local != null) {
+            return local;
+        }
+        synchronized (candadoConsultaRemota) {
+            // Otra petición pudo haber actualizado el catálogo mientras esta esperaba
+            local = catalogoLocalVigente();
+            return local != null ? local : consultarServicioRemoto();
+        }
+    }
+
+    private ProductoListResponse catalogoLocalVigente() {
+        LocalDateTime limite = LocalDateTime.now().minusHours(intervaloMinimoHoras);
+        // Un intento fallido también cuenta: GestoPago lo contabiliza igual aunque no haya respondido
+        boolean consultaRemotaReciente = ultimaConsultaRemota != null && ultimaConsultaRemota.isAfter(limite);
+        LocalDateTime ultimaActualizacion = ultimaActualizacionEnBaseDeDatos();
+        boolean baseDeDatosVigente = ultimaActualizacion != null && ultimaActualizacion.isAfter(limite);
+        if (!consultaRemotaReciente && !baseDeDatosVigente) {
+            return null;
+        }
+        ProductoListResponse local = leerDesdeRedis();
+        if (local == null) {
+            local = leerDesdeBaseDeDatos();
+        }
+        if (local == null) {
+            LocalDateTime siguiente = (ultimaConsultaRemota != null ? ultimaConsultaRemota : LocalDateTime.now())
+                    .plusHours(intervaloMinimoHoras);
+            throw new ExternalServiceException(String.format("El catálogo no está disponible por ahora; GestoPago se "
+                    + "volverá a consultar después de %s para no exceder su límite de consultas diarias", siguiente), 503);
+        }
+        log.info("Catálogo atendido desde {} (GestoPago se consulta como máximo cada {} h)", local.getOrigenDatos(),
+                intervaloMinimoHoras);
+        return local;
+    }
+
+    private LocalDateTime ultimaActualizacionEnBaseDeDatos() {
+        try {
+            return productoCatalogoRepository != null ? productoCatalogoRepository.findUltimaActualizacion() : null;
+        } catch (Exception ex) {
+            log.warn("No fue posible revisar la vigencia del catálogo en PostgreSQL: {}", ex.getMessage());
+            return null;
+        }
+    }
+
+    private ProductoListResponse consultarServicioRemoto() {
         long tiempoInicio = System.currentTimeMillis();
+        ultimaConsultaRemota = LocalDateTime.now();
         log.info("Iniciando consulta resiliente de catálogo de productos");
 
         try {
@@ -132,7 +192,7 @@ public class ProductoServiceImpl implements ProductoService {
             throw ex;
         } catch (Exception ex) {
             log.warn("Fallo al consultar servicio remoto ({}: {}). Activando fallback escalonado...",
-                    ex.getClass().getSimpleName(), ex.getMessage());
+                    ex.getClass().getSimpleName(), OcultadorDatosSensibles.ocultar(ex.getMessage()));
             return obtenerDesdeFallback(ex.getMessage(), ex);
         }
     }
