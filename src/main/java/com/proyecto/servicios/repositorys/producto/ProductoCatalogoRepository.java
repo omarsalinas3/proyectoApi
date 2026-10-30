@@ -2,8 +2,10 @@ package com.proyecto.servicios.repositorys.producto;
 
 import com.proyecto.servicios.entity.producto.ProductoCatalogoEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -22,4 +24,12 @@ public interface ProductoCatalogoRepository extends JpaRepository<ProductoCatalo
      * @return lista de entidades coincidentes.
      */
     List<ProductoCatalogoEntity> findByTipoFront(Integer tipoFront);
+
+    /**
+     * Fecha de la última vez que se guardó el catálogo traído de GestoPago.
+     *
+     * @return fecha más reciente, o {@code null} si la tabla está vacía.
+     */
+    @Query("select max(p.fechaActualizacion) from ProductoCatalogoEntity p")
+    LocalDateTime findUltimaActualizacion();
 }

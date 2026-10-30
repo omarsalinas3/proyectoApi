@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import com.proyecto.servicios.util.OcultadorDatosSensibles;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -72,7 +73,8 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
             log.info("Token GestoPago renovado correctamente");
 
         } catch (Exception e) {
-            log.error("Error al renovar token GestoPago: {}", e.getMessage(), e);
+            // Sin la traza completa: el mensaje de Feign trae la URL con ?password=... (se oculta antes de registrarlo)
+            log.error("Error al renovar token GestoPago: {}", OcultadorDatosSensibles.describir(e));
         }
     }
 

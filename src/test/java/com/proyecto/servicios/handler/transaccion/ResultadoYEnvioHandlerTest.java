@@ -3,6 +3,7 @@ package com.proyecto.servicios.handler.transaccion;
 import com.proyecto.servicios.client.GestoPagoTransaccionClient;
 import com.proyecto.servicios.enums.EstatusTransaccionEnum;
 import com.proyecto.servicios.enums.RolEnum;
+import com.proyecto.servicios.exception.CanalSeguroGestoPagoException;
 import com.proyecto.servicios.exception.ExternalServiceAuthException;
 import com.proyecto.servicios.exception.ExternalServiceException;
 import com.proyecto.servicios.exception.TransaccionPendienteException;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -99,6 +101,33 @@ class ResultadoYEnvioHandlerTest {
 
         assertNull(ctx.getResultado());
         verify(registro, never()).registrarRechazada(anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Falla del handshake TLS: la petición nunca salió, se libera el monto en sendTx pero no en confirmTx")
+    void falloDeHandshakeTls() {
+        RetryableException tls = new RetryableException(-1, "PKIX path building failed", Request.HttpMethod.POST,
+                new SSLHandshakeException("PKIX path building failed"), (Long) null,
+                Request.create(Request.HttpMethod.POST, "/sendTx.do", Map.of(), new byte[0], StandardCharsets.UTF_8, null));
+        when(cliente.sendTx(anyString(), anyMap())).thenThrow(tls);
+        when(cliente.confirmTx(anyString(), anyMap())).thenThrow(tls);
+
+        CanalSeguroGestoPagoException ex = assertThrows(CanalSeguroGestoPagoException.class, () -> envio.manejar(ctx));
+        assertTrue(ex.getMessage().contains("el monto no fue cargado"));
+        verify(registro).registrarRechazada(7L, null, null);
+
+        clearInvocations(registro);
+        assertThrows(CanalSeguroGestoPagoException.class, () -> envio.confirmar(ctx));
+        verify(registro, never()).registrarRechazada(anyLong(), any(), any());
+        verify(registro, never()).registrarPendiente(anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Solo un SSLHandshakeException en la cadena de causas cuenta como fallo de TLS")
+    void detectaHandshakeEnLaCadena() {
+        assertTrue(EnvioTransaccionHandler.esFalloDeHandshake(new RuntimeException(new SSLHandshakeException("x"))));
+        assertFalse(EnvioTransaccionHandler.esFalloDeHandshake(new RuntimeException(new java.net.SocketTimeoutException("x"))));
+        assertFalse(EnvioTransaccionHandler.esFalloDeHandshake(new RuntimeException(new javax.net.ssl.SSLException("reset"))));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.proyecto.servicios.handler.transaccion;
 
 import com.proyecto.servicios.client.GestoPagoTransaccionClient;
+import com.proyecto.servicios.exception.CanalSeguroGestoPagoException;
 import com.proyecto.servicios.exception.ExternalServiceAuthException;
 import com.proyecto.servicios.exception.ExternalServiceException;
 import com.proyecto.servicios.exception.ExternalServiceTimeoutException;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -21,6 +23,7 @@ import java.util.function.BiFunction;
  * <ul>
  *   <li>403/401 (token expirado): se renueva el token y se reintenta una sola vez; la operación no fue procesada.</li>
  *   <li>4xx distinto de 401/403: GestoPago no procesó la operación; se libera el monto y se informa el error.</li>
+ *   <li>Falla del handshake TLS: la petición nunca salió, así que se libera el monto (no es un timeout).</li>
  *   <li>Timeout, 5xx o respuesta ilegible: el resultado es incierto, así que el contexto queda sin resultado y el
  *   registro la marcará PENDIENTE_CONFIRMACION (el monto sigue retenido hasta consultar confirmTx).</li>
  * </ul>
@@ -78,10 +81,28 @@ public class EnvioTransaccionHandler implements PasoTransaccionHandler {
             log.error("{} {} sin resultado confirmado (HTTP {} / respuesta inválida): {}", nombre, upc, e.getStatusCode(), e.getMessage());
             contexto.setResultado(null);
         } catch (FeignException | ExternalServiceTimeoutException e) {
+            if (esFalloDeHandshake(e)) {
+                // El handshake TLS ocurre antes de escribir la petición: GestoPago nunca la recibió
+                log.error("{} {} no enviado: falló el handshake TLS con GestoPago", nombre, upc);
+                if (liberarSiNoSeProceso) {
+                    registro.registrarRechazada(contexto.getTransaccionId(), null, null);
+                }
+                throw new CanalSeguroGestoPagoException("No fue posible establecer un canal seguro con el procesador de pagos"
+                        + (liberarSiNoSeProceso ? "; el monto no fue cargado" : ""), e);
+            }
             // RetryableException (timeout de lectura, conexión cortada) es un FeignException
             log.error("{} {} sin respuesta de GestoPago ({}): queda pendiente de confirmación", nombre, upc, e.getClass().getSimpleName());
             contexto.setResultado(null);
         }
+    }
+
+    static boolean esFalloDeHandshake(Throwable error) {
+        for (Throwable causa = error; causa != null; causa = causa.getCause()) {
+            if (causa instanceof SSLHandshakeException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String enviarRenovandoToken(ContextoTransaccion contexto, BiFunction<String, Map<String, ?>, String> operacion,

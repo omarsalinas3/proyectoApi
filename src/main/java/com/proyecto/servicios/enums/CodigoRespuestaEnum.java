@@ -127,6 +127,8 @@ public enum CodigoRespuestaEnum {
 
     ERROR_TRANSACCION_NO_ENCONTRADA(59, "Transacción no encontrada"),
 
+    ERROR_CANAL_SEGURO(60, "No fue posible establecer un canal seguro (TLS) con el procesador de pagos"),
+
     /** Error interno del servidor (condición inesperada no controlada). */
     ERROR_INTERNO(99, "Error interno del servidor");
 

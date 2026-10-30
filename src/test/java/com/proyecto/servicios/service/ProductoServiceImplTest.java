@@ -318,4 +318,81 @@ class ProductoServiceImplTest {
         assertTrue(ProductoServiceImpl.esTipoFront2.test(p2));
         assertTrue(ProductoServiceImpl.esTipoFront3.test(p3));
     }
+
+    // ===================================================================
+    // LÍMITE DE CONSULTAS A GESTOPAGO (bloquea la IP con más de 3 al día)
+    // ===================================================================
+
+    private static ProductoCatalogoEntity entidadGuardada() {
+        return ProductoCatalogoEntity.builder().idProducto(888L).tipoFront(2).producto("Producto DB")
+                .fechaActualizacion(LocalDateTime.now()).build();
+    }
+
+    @Test
+    @DisplayName("Con el catálogo de la BD vigente no se consulta a GestoPago")
+    void consultarListaProductos_catalogoVigente_noConsultaGestoPago() {
+        ReflectionTestUtils.setField(productoService, "intervaloMinimoHoras", 12L);
+        when(productoCatalogoRepository.findUltimaActualizacion()).thenReturn(LocalDateTime.now().minusHours(1));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(productoCatalogoRepository.findAll()).thenReturn(List.of(entidadGuardada()));
+
+        ProductoListResponse resultado = productoService.consultarListaProductos();
+
+        assertEquals("BASE_DE_DATOS", resultado.getOrigenDatos());
+        verify(productosClient, never()).getProductListRaw();
+    }
+
+    @Test
+    @DisplayName("Con el catálogo de la BD vencido sí se consulta a GestoPago")
+    void consultarListaProductos_catalogoVencido_consultaGestoPago() {
+        ReflectionTestUtils.setField(productoService, "intervaloMinimoHoras", 12L);
+        when(productoCatalogoRepository.findUltimaActualizacion()).thenReturn(LocalDateTime.now().minusHours(13));
+        when(productosClient.getProductListRaw()).thenReturn(xmlEjemploPuntoRed);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        assertEquals("SERVICIO_EXTERNO", productoService.consultarListaProductos().getOrigenDatos());
+        verify(productosClient, times(1)).getProductListRaw();
+    }
+
+    @Test
+    @DisplayName("Un intento fallido también cuenta: no se vuelve a llamar a GestoPago dentro del intervalo")
+    void consultarListaProductos_intentoFallido_noReintentaDentroDelIntervalo() {
+        ReflectionTestUtils.setField(productoService, "intervaloMinimoHoras", 12L);
+        when(productosClient.getProductListRaw()).thenThrow(new ExternalServiceException("Servicio caído", 502));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(productoCatalogoRepository.findAll()).thenReturn(Collections.emptyList());
+
+        assertThrows(ExternalServiceException.class, () -> productoService.consultarListaProductos());
+        ExternalServiceException segunda = assertThrows(ExternalServiceException.class,
+                () -> productoService.consultarListaProductos());
+
+        assertEquals(503, segunda.getStatusCode());
+        assertTrue(segunda.getMessage().contains("límite de consultas"), segunda.getMessage());
+        verify(productosClient, times(1)).getProductListRaw();
+    }
+
+    @Test
+    @DisplayName("Peticiones simultáneas con el catálogo vencido generan una sola llamada a GestoPago")
+    void consultarListaProductos_concurrente_unaSolaLlamada() throws Exception {
+        ReflectionTestUtils.setField(productoService, "intervaloMinimoHoras", 12L);
+        when(productosClient.getProductListRaw()).thenAnswer(i -> {
+            Thread.sleep(300);
+            return xmlEjemploPuntoRed;
+        });
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(productoCatalogoRepository.findAll()).thenReturn(List.of(entidadGuardada()));
+
+        java.util.concurrent.ExecutorService hilos = java.util.concurrent.Executors.newFixedThreadPool(4);
+        try {
+            List<java.util.concurrent.Future<ProductoListResponse>> respuestas = hilos.invokeAll(
+                    Collections.nCopies(4, () -> productoService.consultarListaProductos()));
+            for (java.util.concurrent.Future<ProductoListResponse> respuesta : respuestas) {
+                assertNotNull(respuesta.get().getProductos());
+            }
+        } finally {
+            hilos.shutdownNow();
+        }
+
+        verify(productosClient, times(1)).getProductListRaw();
+    }
 }

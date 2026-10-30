@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.proyecto.servicios.enums.CodigoRespuestaEnum;
 import com.proyecto.servicios.model.common.RespuestaApi;
+import com.proyecto.servicios.util.OcultadorDatosSensibles;
 import feign.FeignException;
 import feign.RetryableException;
 import jakarta.validation.ConstraintViolationException;
@@ -290,8 +291,18 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(TokenGestoPagoException.class)
     public ResponseEntity<RespuestaApi<Void>> handleTokenGestoPago(TokenGestoPagoException ex) {
-        log.error("Token GestoPago no disponible: {}", ex.getMessage());
+        log.error("Token GestoPago no disponible: {}", OcultadorDatosSensibles.ocultar(ex.getMessage()));
         return construir(CodigoRespuestaEnum.ERROR_TOKEN_PROVEEDOR, ex.getMessage(), null, HttpStatus.BAD_GATEWAY);
+    }
+
+    /**
+     * Falló el handshake TLS con GestoPago (certificado no confiable o protocolo no permitido). El detalle técnico solo
+     * va al log; al cliente no se le exponen datos del certificado.
+     */
+    @ExceptionHandler(CanalSeguroGestoPagoException.class)
+    public ResponseEntity<RespuestaApi<Void>> handleCanalSeguro(CanalSeguroGestoPagoException ex) {
+        log.error("Canal TLS con GestoPago rechazado: {}", OcultadorDatosSensibles.describir(ex.getCause() != null ? ex.getCause() : ex));
+        return construir(CodigoRespuestaEnum.ERROR_CANAL_SEGURO, ex.getMessage(), null, HttpStatus.BAD_GATEWAY);
     }
 
     /**
@@ -369,7 +380,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ExternalServiceAuthException.class)
     public ResponseEntity<RespuestaApi<Void>> handleExternalServiceAuthException(ExternalServiceAuthException ex) {
-        log.error("Fallo de autenticación con el servicio externo: {}", ex.getMessage());
+        log.error("Fallo de autenticación con el servicio externo: {}", OcultadorDatosSensibles.ocultar(ex.getMessage()));
         return construir(CodigoRespuestaEnum.ERROR_AUTENTICACION, ex.getMessage(), null, HttpStatus.UNAUTHORIZED);
     }
 
@@ -378,7 +389,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler({ExternalServiceTimeoutException.class, RetryableException.class})
     public ResponseEntity<RespuestaApi<Void>> handleTimeoutException(Exception ex) {
-        log.error("Timeout de comunicación con servicio externo: {}", ex.getMessage());
+        log.error("Timeout de comunicación con servicio externo: {}", OcultadorDatosSensibles.ocultar(ex.getMessage()));
         return construir(CodigoRespuestaEnum.ERROR_TIMEOUT,
                 "El servicio externo no respondió dentro del tiempo límite configurado", null, HttpStatus.GATEWAY_TIMEOUT);
     }
@@ -388,7 +399,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ExternalServiceException.class)
     public ResponseEntity<RespuestaApi<Void>> handleExternalServiceException(ExternalServiceException ex) {
-        log.error("Error devuelto por el servicio externo (status {}): {}", ex.getStatusCode(), ex.getMessage());
+        log.error("Error devuelto por el servicio externo (status {}): {}", ex.getStatusCode(), OcultadorDatosSensibles.ocultar(ex.getMessage()));
         return construir(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO, ex.getMessage(), null, HttpStatus.BAD_GATEWAY);
     }
 
@@ -397,7 +408,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(FeignException.class)
     public ResponseEntity<RespuestaApi<Void>> handleFeignException(FeignException ex) {
-        log.error("Error de cliente Feign [status {}]: {}", ex.status(), ex.getMessage());
+        log.error("Error de cliente Feign [status {}]: {}", ex.status(), OcultadorDatosSensibles.ocultar(ex.getMessage()));
         return construir(CodigoRespuestaEnum.ERROR_SERVICIO_EXTERNO, "Respuesta no satisfactoria del servicio remoto",
                 null, HttpStatus.BAD_GATEWAY);
     }
