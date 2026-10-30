@@ -43,7 +43,7 @@ public class CryptoService {
 
     private final SecretKeySpec secretKeySpec;
 
-    public CryptoService(@Value("${seguridad.crypto.secret-key:MiClaveSecretaSuperSegura2026AES}") String secretKey) {
+    public CryptoService(@Value("${seguridad.crypto.secret-key}") String secretKey) {
         try {
             MessageDigest sha = MessageDigest.getInstance(HASH_ALGORITHM);
             byte[] keyBytes = sha.digest(secretKey.getBytes(StandardCharsets.UTF_8));

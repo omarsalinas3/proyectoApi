@@ -18,11 +18,11 @@ class OcultadorDatosSensiblesTest {
     @DisplayName("Oculta la contraseña de la URL de autenticación de GestoPago y conserva el resto")
     void ocultaPasswordEnUrl() {
         String mensaje = "Connection refused executing POST https://gestopago.portalventas.net/sistema/app/jwt-gp/authenticate/"
-                + "?idDistribuidor=83&codigoDispositivo=GPS83-TPV-17&password=12345678";
+                + "?idDistribuidor=83&codigoDispositivo=GPS83-TPV-17&password=clave-de-ejemplo";
 
         String limpio = OcultadorDatosSensibles.ocultar(mensaje);
 
-        assertFalse(limpio.contains("12345678"), limpio);
+        assertFalse(limpio.contains("clave-de-ejemplo"), limpio);
         assertTrue(limpio.contains("password=****"), limpio);
         assertTrue(limpio.contains("idDistribuidor=83&codigoDispositivo=GPS83-TPV-17"), limpio);
     }

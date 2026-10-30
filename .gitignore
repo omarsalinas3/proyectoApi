@@ -46,3 +46,7 @@ certs/
 *.p12
 *.jks
 *.key
+
+### Secretos locales (los valores reales nunca se versionan) ###
+config/secretos-locales.properties
+.env
