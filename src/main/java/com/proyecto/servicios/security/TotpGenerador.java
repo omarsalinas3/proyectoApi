@@ -83,6 +83,12 @@ public class TotpGenerador {
         return calcular(desdeBase32(secreto), instante.getEpochSecond() / SEGUNDOS_POR_PASO);
     }
 
+    /**
+     * HMAC-SHA1 es el algoritmo por defecto de TOTP (RFC 6238) y el que usan las aplicaciones de autenticación como
+     * Google Authenticator; con otro, los códigos no coincidirían. Las debilidades conocidas de SHA-1 son de colisiones,
+     * que no afectan su uso como HMAC.
+     */
+    @SuppressWarnings("java:S4790")
     private static String calcular(byte[] llave, long paso) {
         try {
             Mac mac = Mac.getInstance("HmacSHA1");

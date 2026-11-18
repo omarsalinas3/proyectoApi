@@ -48,6 +48,9 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @RestControllerAdvice
+// Depende de muchas excepciones porque su función es centralizar el manejo de errores de toda la API. Dividirla en
+// varios @RestControllerAdvice obligaría a controlar su orden: el manejador de Exception podría atrapar los demás.
+@SuppressWarnings("java:S6539")
 public class GlobalExceptionHandler {
 
     // ─────────────────────────────

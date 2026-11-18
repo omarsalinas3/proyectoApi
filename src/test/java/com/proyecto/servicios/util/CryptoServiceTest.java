@@ -4,18 +4,27 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Arrays;
+import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("Pruebas Unitarias - CryptoService")
 class CryptoServiceTest {
 
+    private static final String LLAVE_HEREDADA = "ClaveSecretaDePruebaParaTests2026AES";
+    private static final String LLAVE_V2 = Base64.getEncoder().encodeToString(new byte[32]);
+
     private CryptoService cryptoService;
 
     @BeforeEach
     void setUp() {
-        cryptoService = new CryptoService("ClaveSecretaDePruebaParaTests2026AES");
+        cryptoService = new CryptoService(LLAVE_HEREDADA, LLAVE_V2);
     }
 
     @Test
@@ -89,5 +98,73 @@ class CryptoServiceTest {
         String larga = "A1!" + "x".repeat(80);
         assertThrows(com.proyecto.servicios.exception.ValidacionNegocioException.class, () -> cryptoService.hashPassword(larga));
         assertFalse(cryptoService.verifyPassword(larga, cryptoService.hashPassword("Corta123!")));
+    }
+
+    /** Reproduce el cifrado anterior (AES/ECB con llave derivada de SHA-256) para probar la lectura de datos viejos. */
+    private static String cifrarComoAntes(String texto) throws Exception {
+        byte[] llave = Arrays.copyOf(MessageDigest.getInstance("SHA-256").digest(LLAVE_HEREDADA.getBytes(StandardCharsets.UTF_8)), 16);
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(llave, "AES"));
+        return Base64.getEncoder().encodeToString(cipher.doFinal(texto.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    @DisplayName("Cifrar dos veces el mismo texto da resultados distintos y ambos se pueden leer")
+    void cifradoNoDeterminista() {
+        String a = cryptoService.encrypt("juan.perez");
+        String b = cryptoService.encrypt("juan.perez");
+
+        assertNotEquals(a, b);
+        assertTrue(a.startsWith("v2:"));
+        assertEquals("juan.perez", cryptoService.decrypt(a));
+        assertEquals("juan.perez", cryptoService.decrypt(b));
+    }
+
+    @Test
+    @DisplayName("Un texto cifrado alterado se rechaza en lugar de devolver datos corruptos")
+    void textoAlteradoSeRechaza() {
+        String cifrado = cryptoService.encrypt("juan.perez");
+        byte[] bytes = Base64.getDecoder().decode(cifrado.substring(3));
+        bytes[bytes.length - 1] ^= 1;
+        String alterado = "v2:" + Base64.getEncoder().encodeToString(bytes);
+
+        assertThrows(RuntimeException.class, () -> cryptoService.decrypt(alterado));
+    }
+
+    @Test
+    @DisplayName("Sigue leyendo los datos guardados con el cifrado anterior")
+    void leeDatosHeredados() throws Exception {
+        String heredado = cifrarComoAntes("usuario.viejo");
+
+        assertTrue(cryptoService.requiereMigracion(heredado));
+        assertEquals("usuario.viejo", cryptoService.decrypt(heredado));
+        assertFalse(cryptoService.requiereMigracion(cryptoService.encrypt("x")));
+        assertFalse(cryptoService.requiereMigracion(null));
+    }
+
+    @Test
+    @DisplayName("El hash de búsqueda es estable, distingue usuarios y depende de la llave")
+    void hashDeBusqueda() {
+        String hash = cryptoService.hashBusqueda("juan.perez");
+
+        assertEquals(hash, cryptoService.hashBusqueda("juan.perez"));
+        assertNotEquals(hash, cryptoService.hashBusqueda("juan.perez2"));
+        assertTrue(hash.length() <= 64);
+        assertNull(cryptoService.hashBusqueda(null));
+
+        byte[] otra = new byte[32];
+        otra[0] = 1;
+        CryptoService otroAmbiente = new CryptoService(LLAVE_HEREDADA, Base64.getEncoder().encodeToString(otra));
+        assertNotEquals(hash, otroAmbiente.hashBusqueda("juan.perez"));
+    }
+
+    @Test
+    @DisplayName("No arranca con una llave nueva ausente, inválida o de tamaño incorrecto")
+    void llaveV2Invalida() {
+        String llaveCorta = Base64.getEncoder().encodeToString(new byte[16]);
+
+        assertThrows(IllegalStateException.class, () -> new CryptoService(LLAVE_HEREDADA, ""));
+        assertThrows(IllegalStateException.class, () -> new CryptoService(LLAVE_HEREDADA, "no-es-base64!"));
+        assertThrows(IllegalStateException.class, () -> new CryptoService(LLAVE_HEREDADA, llaveCorta));
     }
 }

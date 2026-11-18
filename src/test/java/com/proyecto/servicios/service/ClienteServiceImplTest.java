@@ -126,8 +126,9 @@ class ClienteServiceImplTest {
         when(usuarioRepository.existsByCurp(anyString())).thenReturn(false);
         when(usuarioRepository.existsByRfc(anyString())).thenReturn(false);
         when(usuarioRepository.existsByCorreo(anyString())).thenReturn(false);
+        when(cryptoService.hashBusqueda(anyString())).thenReturn("hash_username");
+        when(loginRepository.existsByUsernameHash("hash_username")).thenReturn(false);
         when(cryptoService.encrypt(anyString())).thenReturn("enc_username");
-        when(loginRepository.existsByUsernameCifrado("enc_username")).thenReturn(false);
         when(clienteMapper.requestToEntity(registroRequest)).thenReturn(usuarioEntity);
         when(clienteMapper.domicilioDtoToEntity(any())).thenReturn(new DomicilioEntity());
         when(cuentaService.generarNumeroCuentaUnico()).thenReturn("1234567890123456");

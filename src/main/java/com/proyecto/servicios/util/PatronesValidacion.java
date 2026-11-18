@@ -27,6 +27,18 @@ public final class PatronesValidacion {
     public static final String NUMERO_CUENTA = "^[0-9]{16}$";
     public static final String MENSAJE_NUMERO_CUENTA = "El número de cuenta debe contener exactamente 16 dígitos numéricos";
 
+    private static final String LETRAS = "a-zA-ZáéíóúÁÉÍÓÚñÑüÜ";
+
+    // Cuantificadores posesivos (++ y *+): evitan el retroceso que con textos largos congelaba la validación o
+    // provocaba StackOverflowError. @Size no protege, porque el validador evalúa todas las reglas del campo.
+    public static final String NACIONALIDAD = "^[" + LETRAS + "]++(?: [" + LETRAS + "]++)*+$";
+    public static final String OCUPACION = "^[" + LETRAS + "][" + LETRAS + " .,-]*+$";
+    public static final String CORREO = "^[A-Za-z0-9._%+-]++@(?:[A-Za-z0-9-]++\\.)++[A-Za-z]{2,}+$";
+
+    // (?u) hace que ignorar mayúsculas también aplique a letras acentuadas: sin él se rechazaba "unión libre"
+    public static final String ESTADO_CIVIL = "(?iu)^(SOLTERO|SOLTERA|CASADO|CASADA|UNI[OÓ]N[ _]?LIBRE|CONCUBINATO"
+            + "|DIVORCIADO|DIVORCIADA|VIUDO|VIUDA)$";
+
     private PatronesValidacion() {
     }
 

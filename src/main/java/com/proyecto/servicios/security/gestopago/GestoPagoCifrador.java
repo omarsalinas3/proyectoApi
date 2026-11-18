@@ -20,6 +20,10 @@ import java.util.Base64;
  * <p>A diferencia del snippet (que imprime el error y devuelve {@code null}), aquí cualquier falla lanza
  * {@link CifradoGestoPagoException} para que el flujo se detenga antes de enviar datos a GestoPago.</p>
  *
+ * <p><strong>Sobre CBC con IV fijo:</strong> no es una decisión de este proyecto. GestoPago define el algoritmo y
+ * entrega una sola llave con un solo IV; con un IV aleatorio o con otro modo no podría descifrar la petición. La
+ * confidencialidad y la integridad en tránsito las aporta el canal TLS verificado de {@code GestoPagoTlsConfig}.</p>
+ *
  * @author Equipo de Desarrollo
  * @version 1.0
  */
@@ -34,6 +38,7 @@ public class GestoPagoCifrador {
     private final SecretKey llave;
     private final IvParameterSpec iv;
 
+    @SuppressWarnings("java:S3329") // GestoPago exige el IV fijo que entrega; ver la nota de la clase
     public GestoPagoCifrador(@Value("${gestopago.cifrado.secret-key}") String secretKeyBase64,
                              @Value("${gestopago.cifrado.iv}") String ivBase64) {
         byte[] llaveBytes = decodificar(secretKeyBase64, "gestopago.cifrado.secret-key");
@@ -51,6 +56,7 @@ public class GestoPagoCifrador {
     /**
      * Cifra el JSON del payload; el resultado es el valor del parámetro {@code signed}.
      */
+    @SuppressWarnings({"java:S5542", "java:S6432"}) // AES/CBC e IV fijo los exige GestoPago; ver la nota de la clase
     public String cifrar(String textoPlano) {
         try {
             Cipher cipher = Cipher.getInstance(TRANSFORMACION);
@@ -59,20 +65,6 @@ public class GestoPagoCifrador {
         } catch (GeneralSecurityException | RuntimeException e) {
             log.error("No fue posible cifrar la petición para GestoPago: {}", e.getClass().getSimpleName());
             throw new CifradoGestoPagoException("No fue posible cifrar la petición para el procesador de pagos", e);
-        }
-    }
-
-    /**
-     * Descifra un valor producido por {@link #cifrar(String)} (o por GestoPago con la misma llave).
-     */
-    public String descifrar(String textoCifrado) {
-        try {
-            Cipher cipher = Cipher.getInstance(TRANSFORMACION);
-            cipher.init(Cipher.DECRYPT_MODE, llave, iv);
-            return new String(cipher.doFinal(Base64.getDecoder().decode(textoCifrado)), StandardCharsets.UTF_8);
-        } catch (GeneralSecurityException | RuntimeException e) {
-            log.error("No fue posible descifrar el contenido de GestoPago: {}", e.getClass().getSimpleName());
-            throw new CifradoGestoPagoException("No fue posible descifrar el contenido del procesador de pagos", e);
         }
     }
 

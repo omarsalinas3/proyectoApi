@@ -220,7 +220,7 @@ public class AuthServiceImpl implements AuthService {
     // ─────────────────────────────
 
     private Optional<LoginEntity> buscarLogin(String rawUsername) {
-        Optional<LoginEntity> optLogin = loginRepository.findByUsernameCifrado(cryptoService.encrypt(rawUsername));
+        Optional<LoginEntity> optLogin = loginRepository.findByUsernameHash(cryptoService.hashBusqueda(rawUsername));
         if (optLogin.isPresent()) {
             return optLogin;
         }

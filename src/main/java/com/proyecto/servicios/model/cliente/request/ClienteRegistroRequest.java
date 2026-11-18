@@ -4,6 +4,7 @@ import com.proyecto.servicios.model.common.RequestEstricto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.proyecto.servicios.model.cliente.dto.DomicilioDTO;
+import com.proyecto.servicios.util.PatronesValidacion;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -94,13 +95,13 @@ public class ClienteRegistroRequest extends RequestEstricto implements Serializa
     @Schema(description = "Nacionalidad", example = "Mexicana")
     @NotBlank(message = "La nacionalidad es obligatoria")
     @Size(min = 4, max = 50, message = "La nacionalidad debe tener entre 4 y 50 caracteres")
-    @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+( [a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+)*$",
+    @Pattern(regexp = PatronesValidacion.NACIONALIDAD,
             message = "La nacionalidad solo debe contener letras y espacios simples (sin números ni símbolos), por ejemplo: Mexicana")
     private String nacionalidad;
 
     @Schema(description = "Estado civil (SOLTERO, CASADO, UNION_LIBRE, etc.)", example = "SOLTERO")
     @NotBlank(message = "El estado civil es obligatorio")
-    @Pattern(regexp = "(?i)^(SOLTERO|SOLTERA|CASADO|CASADA|UNION[ _]?LIBRE|UNIÓN[ _]?LIBRE|CONCUBINATO|DIVORCIADO|DIVORCIADA|VIUDO|VIUDA)$",
+    @Pattern(regexp = PatronesValidacion.ESTADO_CIVIL, flags = Pattern.Flag.CANON_EQ,
             message = "El estado civil no es válido. Valores permitidos: SOLTERO, CASADO, UNION_LIBRE, DIVORCIADO, VIUDO")
     private String estadoCivil;
 
@@ -111,7 +112,7 @@ public class ClienteRegistroRequest extends RequestEstricto implements Serializa
     @Schema(description = "Correo electrónico institucional o personal", example = "carlos.hernandez@example.com")
     @NotBlank(message = "El correo electrónico es obligatorio")
     @Email(message = "El formato del correo electrónico no es válido")
-    @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}$",
+    @Pattern(regexp = PatronesValidacion.CORREO,
             message = "El correo electrónico debe tener el formato usuario@dominio.com (con dominio y extensión válidos)")
     @Size(max = 100, message = "El correo electrónico no debe exceder 100 caracteres")
     private String correo;
@@ -132,7 +133,7 @@ public class ClienteRegistroRequest extends RequestEstricto implements Serializa
     @Schema(description = "Ocupación o profesión", example = "Ingeniero de Software")
     @NotBlank(message = "La ocupación es obligatoria")
     @Size(min = 2, max = 100, message = "La ocupación debe tener entre 2 y 100 caracteres")
-    @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ .,-]*$",
+    @Pattern(regexp = PatronesValidacion.OCUPACION,
             message = "La ocupación solo debe contener letras, espacios, puntos, comas y guiones (sin números ni otros símbolos)")
     private String ocupacion;
 

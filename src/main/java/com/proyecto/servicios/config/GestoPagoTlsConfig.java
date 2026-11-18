@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
  *
  * <ul>
  *   <li>Solo confía en las CA del bundle {@code gestopago} ({@code tls/gestopago-ca.pem}, raíces de DigiCert), no en
- *   todo el almacén de la JVM: un certificado emitido por otra CA, aunque sea válido, se rechaza.</li>
+ *   el almacén completo de la JVM: un certificado emitido por otra CA, aunque sea válido, se rechaza.</li>
  *   <li>Se fija la CA raíz y no el certificado del servidor, porque GestoPago lo renueva cada año y fijarlo rompería
  *   la integración en cada renovación.</li>
  *   <li>Solo TLSv1.3 y TLSv1.2 (configurable); nunca se degrada a versiones inseguras.</li>

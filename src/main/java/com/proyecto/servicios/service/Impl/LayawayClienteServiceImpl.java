@@ -230,6 +230,7 @@ public class LayawayClienteServiceImpl implements LayawayClienteService {
         LoginEntity login = LoginEntity.builder()
                 .usuario(usuario)
                 .usernameCifrado(userCifrado)
+                .usernameHash(cryptoService.hashBusqueda(rawUsername))
                 .passwordHash(passHash)
                 .datosBiometricosPrecision(bioPrecision)
                 .datosBiometricosCifrados(bioCifrado)

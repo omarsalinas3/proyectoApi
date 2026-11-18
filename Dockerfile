@@ -13,10 +13,13 @@ RUN chmod +x gradlew && ./gradlew bootJar --no-daemon -x test
 
 # Etapa 2: Imagen final ligera para ejecución
 FROM eclipse-temurin:21-jre-alpine
+# Usuario sin privilegios: si alguien comprometiera la aplicación, no tendría permisos de root en el contenedor
+RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 
 # Copiar el jar generado
-COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build --chown=app:app /app/build/libs/*.jar app.jar
+USER app
 
 # Exponer puerto 8080
 EXPOSE 8080

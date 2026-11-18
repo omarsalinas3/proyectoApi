@@ -29,16 +29,10 @@ class GestoPagoCifradorTest {
     }
 
     @Test
-    @DisplayName("Descifrar el resultado esperado de la documentación devuelve el payload original")
-    void descifradoDelResultadoDocumentado() {
-        assertEquals(PAYLOAD_DOCUMENTACION, cifrador.descifrar(RESULTADO_ESPERADO_DOCUMENTACION));
-    }
-
-    @Test
-    @DisplayName("Ida y vuelta con caracteres UTF-8")
-    void idaYVueltaUtf8() {
+    @DisplayName("Los acentos se cifran como UTF-8 (resultado calculado aparte con otra implementación de AES)")
+    void cifradoUtf8() {
         String json = "{\"referencia\":\"Ñandú 25720381\",\"montoPago\":601.99}";
-        assertEquals(json, cifrador.descifrar(cifrador.cifrar(json)));
+        assertEquals("pzwyT+XRbOKb6FsBIEVLt6jubwF2yzm03g3ejbFg4b7bWEg57VUFljoVSvMIh+dE9NqWafh5FJo8epHW1QLC+w==", cifrador.cifrar(json));
     }
 
     @Test
@@ -50,8 +44,8 @@ class GestoPagoCifradorTest {
     }
 
     @Test
-    @DisplayName("Un texto cifrado corrupto lanza CifradoGestoPagoException en lugar de devolver null")
-    void cifradoCorrupto() {
-        assertThrows(CifradoGestoPagoException.class, () -> cifrador.descifrar("AAAA"));
+    @DisplayName("Una falla al cifrar lanza CifradoGestoPagoException en lugar de devolver null")
+    void fallaAlCifrar() {
+        assertThrows(CifradoGestoPagoException.class, () -> cifrador.cifrar(null));
     }
 }

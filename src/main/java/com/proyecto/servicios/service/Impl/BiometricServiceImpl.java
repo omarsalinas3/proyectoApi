@@ -124,13 +124,21 @@ public class BiometricServiceImpl implements BiometricService {
             return match;
         }
 
-        // 3. Fallback de comparación criptográfica de string
+        // 3. Comparación contra el valor enrolado: se descifra, porque cifrar dos veces lo mismo da textos distintos
         if (probeEscalar != null && encryptedEnrollment != null) {
-            String probeEncrypted = cryptoService.encryptBiometrics(probeEscalar);
-            return probeEncrypted.equals(encryptedEnrollment);
+            return coincideConValorCifrado(probeEscalar, encryptedEnrollment);
         }
 
         log.warn("No se proporcionaron datos biométricos válidos para la comparación");
         return false;
+    }
+
+    private boolean coincideConValorCifrado(BigDecimal probeEscalar, String encryptedEnrollment) {
+        try {
+            return probeEscalar.compareTo(cryptoService.decryptBiometrics(encryptedEnrollment)) == 0;
+        } catch (RuntimeException e) {
+            log.warn("No fue posible comparar contra el dato biométrico enrolado: {}", e.getClass().getSimpleName());
+            return false;
+        }
     }
 }
