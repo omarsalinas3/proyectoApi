@@ -1,7 +1,5 @@
 package com.proyecto.servicios.service.Impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.proyecto.servicios.client.ProductosClient;
 import com.proyecto.servicios.entity.producto.ProductoCatalogoEntity;
 import com.proyecto.servicios.enums.CodigoRespuestaEnum;
@@ -29,12 +27,10 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.StringReader;
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -57,8 +53,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ProductoServiceImpl implements ProductoService {
 
+    /** Código con el que GestoPago confirma la operación ("01" en su XML). */
+    private static final int CODIGO_EXITO_GESTOPAGO = 1;
+
     private final ProductosClient productosClient;
-    private final ObjectMapper objectMapper;
     private final ProductoMapper productoMapper;
     private final ProductoCatalogoRepository productoCatalogoRepository;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -78,12 +76,10 @@ public class ProductoServiceImpl implements ProductoService {
     @Autowired
     public ProductoServiceImpl(
             ProductosClient productosClient,
-            ObjectMapper objectMapper,
             ProductoMapper productoMapper,
             @Autowired(required = false) ProductoCatalogoRepository productoCatalogoRepository,
             @Autowired(required = false) RedisTemplate<String, Object> redisTemplate) {
         this.productosClient = productosClient;
-        this.objectMapper = objectMapper;
         this.productoMapper = productoMapper;
         this.productoCatalogoRepository = productoCatalogoRepository;
         this.redisTemplate = redisTemplate;
@@ -171,7 +167,7 @@ public class ProductoServiceImpl implements ProductoService {
                 return obtenerDesdeFallback("Servicio remoto retornó contenido vacío");
             }
 
-            // 2. Parsear respuesta (JAXB para XML o Jackson para JSON)
+            // 2. Parsear respuesta XML con JAXB
             ProductoListResponse response = parsearRespuesta(rawResponse);
             response.setOrigenDatos("SERVICIO_EXTERNO");
             if (response.getFechaConsulta() == null) {
@@ -237,15 +233,14 @@ public class ProductoServiceImpl implements ProductoService {
     }
 
     /**
-     * Identifica y parsea la respuesta cruda según su formato (XML con JAXB o JSON con Jackson).
+     * GestoPago documenta el catálogo únicamente en XML; cualquier otro formato se trata como respuesta inválida.
      */
     private ProductoListResponse parsearRespuesta(String rawBody) {
         String trimmed = rawBody.trim();
-        if (trimmed.startsWith("<")) {
-            return parsearXml(trimmed);
-        } else {
-            return parsearJson(trimmed);
+        if (!trimmed.startsWith("<")) {
+            throw new ExternalServiceException("El servicio remoto no respondió el catálogo en formato XML", 502);
         }
+        return parsearXml(trimmed);
     }
 
     /**
@@ -275,12 +270,9 @@ public class ProductoServiceImpl implements ProductoService {
                 throw new ExternalServiceException("El contenido XML deserializado resultó nulo", 502);
             }
 
-            int codigo = 200;
             String mensaje = "Operacion realizada con exito";
             if (responseXml.getMensaje() != null) {
-                if (responseXml.getMensaje().getCodigo() != null) {
-                    codigo = responseXml.getMensaje().getCodigo();
-                }
+                validarCodigoGestoPago(responseXml.getMensaje().getCodigo());
                 if (responseXml.getMensaje().getTexto() != null && !responseXml.getMensaje().getTexto().isBlank()) {
                     mensaje = responseXml.getMensaje().getTexto();
                 }
@@ -305,6 +297,8 @@ public class ProductoServiceImpl implements ProductoService {
             String detalle = errorUbicacion.length() > 0 ? " Ubicación del error: " + errorUbicacion : "";
             log.error("Error al procesar XML con JAXB.{}: {}", detalle, ex.getMessage(), ex);
             throw new ExternalServiceException("Error en formato XML del servicio remoto." + detalle, ex, 502);
+        } catch (ExternalServiceException ex) {
+            throw ex;
         } catch (Exception ex) {
             log.error("Error inesperado al parsear XML: {}", ex.getMessage(), ex);
             throw new ExternalServiceException("Error inesperado al procesar XML del servicio remoto: " + ex.getMessage(), ex, 502);
@@ -312,152 +306,14 @@ public class ProductoServiceImpl implements ProductoService {
     }
 
     /**
-     * Parsea la respuesta en formato JSON de forma resiliente ante variantes de claves.
+     * Un código distinto de éxito significa que GestoPago no entregó el catálogo: se lanza la excepción para que
+     * se responda con la copia local en lugar de reportar como exitoso un catálogo vacío.
      */
-    private ProductoListResponse parsearJson(String json) {
-        try {
-            JsonNode root = objectMapper.readTree(json);
-
-            // Validar token expirado
-            if (root.has("token") && "EXPIRED".equalsIgnoreCase(root.get("token").asText())) {
-                String errorMsg = root.has("message") ? root.get("message").asText() : "El token de autenticación ha expirado";
-                log.warn("Servicio remoto indicó token expirado: {}", errorMsg);
-                throw new ExternalServiceAuthException("El token de autenticación con el servicio remoto ha expirado. " + errorMsg, 401);
-            }
-
-            // Validar estado fallido explícito sin productos
-            if (root.has("success") && !root.get("success").asBoolean() && !root.has("productos") && !root.has("PRODUCTOS")) {
-                String errorMsg = root.has("message") ? root.get("message").asText() : "El servicio remoto retornó estado no exitoso";
-                log.warn("Servicio remoto retornó respuesta no exitosa: {}", errorMsg);
-                throw new ExternalServiceException("El servicio remoto retornó respuesta no exitosa: " + errorMsg, 502);
-            }
-
-            int codigo = 200;
-            if (root.has("codigo") && root.get("codigo").isNumber()) {
-                codigo = root.get("codigo").asInt();
-            } else if (root.has("CODIGO")) {
-                codigo = parsearEnteroSeguro(root.get("CODIGO").asText());
-            }
-
-            String mensaje = "Operacion realizada con exito";
-            if (root.has("mensaje")) {
-                JsonNode msgNode = root.get("mensaje");
-                if (msgNode.isObject()) {
-                    if (msgNode.has("texto")) mensaje = msgNode.get("texto").asText();
-                    else if (msgNode.has("TEXTO")) mensaje = msgNode.get("TEXTO").asText();
-                    if (msgNode.has("codigo")) codigo = parsearEnteroSeguro(msgNode.get("codigo").asText());
-                    else if (msgNode.has("CODIGO")) codigo = parsearEnteroSeguro(msgNode.get("CODIGO").asText());
-                } else {
-                    mensaje = msgNode.asText();
-                }
-            } else if (root.has("MENSAJE")) {
-                JsonNode msgNode = root.get("MENSAJE");
-                if (msgNode.isObject()) {
-                    if (msgNode.has("TEXTO")) mensaje = msgNode.get("TEXTO").asText();
-                    else if (msgNode.has("texto")) mensaje = msgNode.get("texto").asText();
-                    if (msgNode.has("CODIGO")) codigo = parsearEnteroSeguro(msgNode.get("CODIGO").asText());
-                    else if (msgNode.has("codigo")) codigo = parsearEnteroSeguro(msgNode.get("codigo").asText());
-                } else {
-                    mensaje = msgNode.asText();
-                }
-            } else if (root.has("message")) {
-                mensaje = root.get("message").asText();
-            }
-
-            List<ProductoItemDTO> productos = new ArrayList<>();
-            JsonNode prodContainer = null;
-            if (root.has("productos")) prodContainer = root.get("productos");
-            else if (root.has("PRODUCTOS")) prodContainer = root.get("PRODUCTOS");
-
-            if (prodContainer != null) {
-                if (prodContainer.isArray()) {
-                    for (JsonNode itemNode : prodContainer) {
-                        productos.add(parsearItemJson(itemNode));
-                    }
-                } else if (prodContainer.isObject()) {
-                    JsonNode arrayOrObj = prodContainer.has("producto") ? prodContainer.get("producto") :
-                            (prodContainer.has("PRODUCTO") ? prodContainer.get("PRODUCTO") : null);
-
-                    if (arrayOrObj != null) {
-                        if (arrayOrObj.isArray()) {
-                            for (JsonNode itemNode : arrayOrObj) {
-                                productos.add(parsearItemJson(itemNode));
-                            }
-                        } else if (arrayOrObj.isObject()) {
-                            productos.add(parsearItemJson(arrayOrObj));
-                        }
-                    }
-                }
-            }
-
-            return ProductoListResponse.builder()
-                    .codigoRespuesta(CodigoRespuestaEnum.EXITO)
-                    .codigo(CodigoRespuestaEnum.EXITO.getCodigo())
-                    .mensaje(mensaje)
-                    .totalRegistros((long) productos.size())
-                    .fechaConsulta(LocalDateTime.now())
-                    .origenDatos("SERVICIO_EXTERNO")
-                    .productos(productos)
-                    .build();
-
-        } catch (ExternalServiceAuthException | ExternalServiceException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            log.error("Error al procesar JSON con Jackson: {}", ex.getMessage(), ex);
-            throw new ExternalServiceException("Error al procesar el formato de respuesta del servicio remoto", ex, 502);
+    private void validarCodigoGestoPago(Integer codigo) {
+        if (codigo != null && codigo != CODIGO_EXITO_GESTOPAGO) {
+            throw new ExternalServiceException(
+                    String.format("GestoPago respondió el catálogo con el código de error %d", codigo), 502);
         }
-    }
-
-    private ProductoItemDTO parsearItemJson(JsonNode node) {
-        JsonNode attrs = node.has("$") ? node.get("$") : node;
-
-        Long idProducto = parsearLongSeguro(obtenerTextoJson(attrs, "idProducto", "ID_PRODUCTO", "idproducto"));
-        Integer idServicio = parsearEnteroSeguro(obtenerTextoJson(attrs, "idServicio", "ID_SERVICIO", "idservicio"));
-        Integer idCatTipoServicio = parsearEnteroSeguro(obtenerTextoJson(attrs, "idCatTipoServicio", "ID_CAT_TIPO_SERVICIO", "idcattiposervicio"));
-        Integer tipoFront = parsearEnteroSeguro(obtenerTextoJson(attrs, "tipoFront", "TIPO_FRONT", "tipofront"));
-        String producto = obtenerTextoJson(attrs, "producto", "PRODUCTO");
-        String servicio = obtenerTextoJson(attrs, "servicio", "SERVICIO");
-        BigDecimal precio = parsearBigDecimalSeguro(obtenerTextoJson(attrs, "precio", "PRECIO"));
-        String tipoReferencia = obtenerTextoJson(attrs, "tipoReferencia", "TIPO_REFERENCIA", "tiporeferencia");
-        Boolean hasDigitoVerificador = parsearBooleanoSeguro(obtenerTextoJson(attrs, "hasDigitoVerificador", "HAS_DIGITO_VERIFICADOR", "hasdigitoverificador"));
-        Boolean showAyuda = parsearBooleanoSeguro(obtenerTextoJson(attrs, "showAyuda", "SHOW_AYUDA", "showayuda"));
-
-        String legend = null;
-        if (node.has("legend")) legend = node.get("legend").asText();
-        else if (node.has("LEGEND")) legend = node.get("LEGEND").asText();
-
-        return ProductoItemDTO.builder()
-                .idProducto(idProducto)
-                .idServicio(idServicio)
-                .idCatTipoServicio(idCatTipoServicio)
-                .tipoFront(tipoFront)
-                .producto(producto)
-                .servicio(servicio)
-                .precio(precio)
-                .tipoReferencia(tipoReferencia)
-                .hasDigitoVerificador(hasDigitoVerificador)
-                .showAyuda(showAyuda)
-                .legend(legend)
-                .build();
-    }
-
-    private String obtenerTextoJson(JsonNode node, String... keys) {
-        if (node == null || !node.isObject()) return null;
-        for (String key : keys) {
-            if (node.has(key)) {
-                return node.get(key).asText();
-            }
-        }
-        Iterator<String> fieldNames = node.fieldNames();
-        while (fieldNames.hasNext()) {
-            String fieldName = fieldNames.next();
-            for (String key : keys) {
-                if (fieldName.equalsIgnoreCase(key) || fieldName.replace("_", "").equalsIgnoreCase(key.replace("_", ""))) {
-                    return node.get(fieldName).asText();
-                }
-            }
-        }
-        return null;
     }
 
     private String sanitizarXml(String xml) {
@@ -588,7 +444,7 @@ public class ProductoServiceImpl implements ProductoService {
             return productos;
         }
 
-        Predicate<ProductoItemDTO> filtro = p -> true; // Predicado inicial que acepta todo
+        Predicate<ProductoItemDTO> filtro = p -> true; // Predicado inicial que acepta cualquier producto
 
         if (request.getTipoFront() != null) {
             filtro = filtro.and(esTipoFront(request.getTipoFront()));
@@ -713,36 +569,5 @@ public class ProductoServiceImpl implements ProductoService {
             response.setMensaje("Catálogo para frontend ordenado ascendentemente");
         }
         return response;
-    }
-
-    private Long parsearLongSeguro(String valor) {
-        try {
-            return (valor != null && !valor.isBlank()) ? Long.valueOf(valor.trim()) : null;
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private Integer parsearEnteroSeguro(String valor) {
-        try {
-            return (valor != null && !valor.isBlank()) ? Integer.valueOf(valor.trim()) : null;
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private BigDecimal parsearBigDecimalSeguro(String valor) {
-        try {
-            return (valor != null && !valor.isBlank()) ? new BigDecimal(valor.trim()) : null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private Boolean parsearBooleanoSeguro(String valor) {
-        if (valor == null || valor.isBlank()) {
-            return null;
-        }
-        return Boolean.valueOf(valor.trim());
     }
 }

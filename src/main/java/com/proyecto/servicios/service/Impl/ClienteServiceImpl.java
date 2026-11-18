@@ -112,8 +112,8 @@ public class ClienteServiceImpl implements ClienteService {
             throw new CorreoDuplicadoException("El correo electrónico ya se encuentra registrado: " + correo);
         }
 
-        String usernameCifrado = cryptoService.encrypt(username);
-        if (loginRepository.existsByUsernameCifrado(usernameCifrado)) {
+        String usernameHash = cryptoService.hashBusqueda(username);
+        if (loginRepository.existsByUsernameHash(usernameHash)) {
             log.warn("Conflicto: El nombre de usuario {} ya está registrado", username);
             throw new UsuarioDuplicadoException("El nombre de usuario ya se encuentra registrado: " + username);
         }
@@ -160,7 +160,8 @@ public class ClienteServiceImpl implements ClienteService {
 
         LoginEntity loginEntity = LoginEntity.builder()
                 .usuario(usuarioEntity)
-                .usernameCifrado(usernameCifrado)
+                .usernameCifrado(cryptoService.encrypt(username))
+                .usernameHash(usernameHash)
                 .passwordHash(cryptoService.hashPassword(request.getPassword()))
                 .datosBiometricosPrecision(request.getDatosBiometricos())
                 .datosBiometricosCifrados(biometriaCifrada)

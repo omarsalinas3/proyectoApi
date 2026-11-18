@@ -46,8 +46,11 @@ import java.util.Map;
 public class ConfigDB {
 
     // [jdbc:]postgres[ql]://user:pass@host[:port]/db[?query]
-    private static final java.util.regex.Pattern EMBEDDED_CREDENTIALS_URL = java.util.regex.Pattern.compile(
-            "^(?:jdbc:)?postgres(?:ql)?://([^:/@]+):(.+)@([^:/@]+)(?::(\\d+))?(/[^?]*)(\\?.*)?$");
+    // (.+) debe poder retroceder hasta la última @ porque la contraseña puede contenerla. Esta expresión solo procesa
+    // DB_URL, que se define en la configuración una vez al arrancar: un usuario no puede enviarle un texto malicioso.
+    @SuppressWarnings("java:S8786")
+    static final java.util.regex.Pattern EMBEDDED_CREDENTIALS_URL = java.util.regex.Pattern.compile(
+            "^(?:jdbc:)?postgres(?:ql)?://([^:/@]++):(.+)@([^:/@]++)(?::(\\d++))?(/[^?]*+)(\\?.*+)?$");
 
     @Autowired
     private Environment env;

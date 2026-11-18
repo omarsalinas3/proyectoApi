@@ -45,6 +45,13 @@ public class LoginEntity implements Serializable {
     @Column(name = "username_cifrado", nullable = false, unique = true, columnDefinition = "TEXT")
     private String usernameCifrado;
 
+    /**
+     * HMAC del usuario: es lo que se usa para buscar y lo que garantiza que no se repita, porque el texto cifrado
+     * cambia cada vez que se cifra.
+     */
+    @Column(name = "username_hash", unique = true, length = 64)
+    private String usernameHash;
+
     @Column(name = "password_hash", nullable = false, columnDefinition = "TEXT")
     private String passwordHash;
 

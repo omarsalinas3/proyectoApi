@@ -82,8 +82,8 @@ class AuthServiceImplTest {
                 .password("Password123!")
                 .build();
 
-        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
-        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.hashBusqueda("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameHash("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
         when(cryptoService.verifyPassword("Password123!", "hashed_password_123")).thenReturn(true);
         when(loginRepository.save(any(LoginEntity.class))).thenReturn(loginEntity);
 
@@ -105,8 +105,8 @@ class AuthServiceImplTest {
                 .password("PasswordInvalido")
                 .build();
 
-        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
-        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.hashBusqueda("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameHash("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
         when(cryptoService.verifyPassword("PasswordInvalido", "hashed_password_123")).thenReturn(false);
 
         assertThrows(CredencialesInvalidasException.class, () -> authService.login(request));
@@ -119,8 +119,8 @@ class AuthServiceImplTest {
         loginEntity.setSesionActiva(true);
         loginEntity.setUltimaActividad(OffsetDateTime.now().minusSeconds(10));
 
-        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
-        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.hashBusqueda("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameHash("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
         when(loginRepository.save(any(LoginEntity.class))).thenReturn(loginEntity);
 
         LoginResponse response = authService.verificarEstadoSesion("carlos.h95", 300);
@@ -137,8 +137,8 @@ class AuthServiceImplTest {
         loginEntity.setSesionActiva(true);
         loginEntity.setUltimaActividad(OffsetDateTime.now().minusSeconds(350)); // 350 segundos de inactividad
 
-        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
-        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.hashBusqueda("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameHash("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
 
         assertThrows(SesionExpiradaException.class, () -> authService.verificarEstadoSesion("carlos.h95", 300));
         assertFalse(loginEntity.getSesionActiva());
@@ -150,8 +150,8 @@ class AuthServiceImplTest {
     void testLogoutExitoso() {
         loginEntity.setSesionActiva(true);
 
-        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
-        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.hashBusqueda("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameHash("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
         when(loginRepository.save(any(LoginEntity.class))).thenReturn(loginEntity);
 
         LoginResponse response = authService.logout("carlos.h95");
@@ -168,11 +168,11 @@ class AuthServiceImplTest {
         com.proyecto.servicios.repositorys.cliente.UsuarioRepository usuarioRepository =
                 mock(com.proyecto.servicios.repositorys.cliente.UsuarioRepository.class);
         ReflectionTestUtils.setField(authService, "usuarioRepository", usuarioRepository);
-        when(cryptoService.encrypt(anyString())).thenAnswer(i -> "enc_" + i.getArgument(0));
-        when(loginRepository.findByUsernameCifrado("enc_nadie")).thenReturn(Optional.empty());
+        when(cryptoService.hashBusqueda(anyString())).thenAnswer(i -> "enc_" + i.getArgument(0));
+        when(loginRepository.findByUsernameHash("enc_nadie")).thenReturn(Optional.empty());
         when(usuarioRepository.findByCorreo("nadie")).thenReturn(Optional.empty());
         when(usuarioRepository.findByCurp("NADIE")).thenReturn(Optional.empty());
-        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(loginRepository.findByUsernameHash("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
         when(cryptoService.verifyPassword("Mala123!", "hashed_password_123")).thenReturn(false);
 
         CredencialesInvalidasException noExiste = assertThrows(CredencialesInvalidasException.class,
@@ -186,8 +186,8 @@ class AuthServiceImplTest {
     @DisplayName("Face ID debe rechazarse si el cliente no tiene biometría registrada")
     void testFaceIdSinBiometriaRegistrada() {
         loginEntity.setDatosBiometricosPrecision(null);
-        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
-        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.hashBusqueda("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameHash("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
 
         LoginRequest request = LoginRequest.builder().bandera(2).username("carlos.h95").faceIdBiometrico(123L).build();
 
@@ -199,8 +199,8 @@ class AuthServiceImplTest {
     @DisplayName("Un cliente dado de baja no puede iniciar sesión")
     void testClienteInactivoNoInicia() {
         usuarioEntity.setActivo(false);
-        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
-        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.hashBusqueda("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameHash("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
         when(cryptoService.verifyPassword("Password123!", "hashed_password_123")).thenReturn(true);
 
         LoginRequest request = LoginRequest.builder().bandera(1).username("carlos.h95").password("Password123!").build();
@@ -212,8 +212,8 @@ class AuthServiceImplTest {
     @Test
     @DisplayName("El login exitoso devuelve un token Bearer con rol CLIENTE")
     void testLoginDevuelveToken() {
-        when(cryptoService.encrypt("carlos.h95")).thenReturn("enc_carlos.h95");
-        when(loginRepository.findByUsernameCifrado("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
+        when(cryptoService.hashBusqueda("carlos.h95")).thenReturn("enc_carlos.h95");
+        when(loginRepository.findByUsernameHash("enc_carlos.h95")).thenReturn(Optional.of(loginEntity));
         when(cryptoService.verifyPassword("Password123!", "hashed_password_123")).thenReturn(true);
         when(jwtService.generarToken(any())).thenReturn("token.jwt.firmado");
         when(jwtService.getExpiracionSegundos()).thenReturn(1800L);

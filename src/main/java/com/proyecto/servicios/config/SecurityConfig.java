@@ -23,7 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *   <li>API sin estado (sin sesión HTTP ni CSRF): cada petición se autentica con un token JWT.</li>
  *   <li>Públicos: login, registro de clientes (onboarding), documentación Swagger y health check.</li>
  *   <li>Las búsquedas de clientes y cuentas requieren token; un CLIENTE solo obtiene sus propios registros.</li>
- *   <li>Todo lo demás requiere token; la propiedad de cada registro se valida en {@code ControlAcceso}.</li>
+ *   <li>Cualquier otra ruta requiere token; la propiedad de cada registro se valida en {@code ControlAcceso}.</li>
  * </ul>
  *
  * @author Equipo de Desarrollo
@@ -42,6 +42,12 @@ public class SecurityConfig {
             "/error"
     };
 
+    /**
+     * CSRF se deshabilita porque aplica cuando el navegador envía sola la credencial (una cookie de sesión). Aquí no
+     * hay sesión ni cookies de autenticación: {@code JwtAuthenticationFilter} solo acepta el token en el encabezado
+     * {@code Authorization}, que otro sitio no puede agregar por su cuenta a una petición.
+     */
+    @SuppressWarnings("java:S4502")
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    JwtService jwtService,

@@ -1,7 +1,5 @@
 package com.proyecto.servicios.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.proyecto.servicios.client.ProductosClient;
 import com.proyecto.servicios.entity.producto.ProductoCatalogoEntity;
 import com.proyecto.servicios.enums.CodigoRespuestaEnum;
@@ -68,22 +66,17 @@ class ProductoServiceImplTest {
     @Mock
     private ValueOperations<String, Object> valueOperations;
 
-    private ObjectMapper objectMapper;
     private ProductoMapper productoMapper;
     private ProductoServiceImpl productoService;
 
     private String xmlEjemploPuntoRed;
-    private String jsonEjemploPuntoRed;
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
         productoMapper = Mappers.getMapper(ProductoMapper.class);
 
         productoService = new ProductoServiceImpl(
                 productosClient,
-                objectMapper,
                 productoMapper,
                 productoCatalogoRepository,
                 redisTemplate
@@ -110,14 +103,6 @@ class ProductoServiceImplTest {
                 "        </producto>\n" +
                 "    </PRODUCTOS>\n" +
                 "</RESPONSE>";
-
-        jsonEjemploPuntoRed = "{\n" +
-                "  \"mensaje\": { \"codigo\": \"01\", \"texto\": \"Operacion realizada con exito\" },\n" +
-                "  \"productos\": [\n" +
-                "    { \"idproducto\": 19457, \"idservicio\": 3265, \"tipofront\": 1, \"producto\": \"Recarga $800\", \"servicio\": \"Recorcholis\", \"precio\": 640.0, \"hasdigitoverificador\": false },\n" +
-                "    { \"idproducto\": 19458, \"idservicio\": 3266, \"tipofront\": 2, \"producto\": \"Pago CFE\", \"servicio\": \"CFE\", \"precio\": 150.0, \"hasdigitoverificador\": true }\n" +
-                "  ]\n" +
-                "}";
     }
 
     @Test
@@ -153,29 +138,48 @@ class ProductoServiceImplTest {
         verify(productoCatalogoRepository, times(1)).saveAll(anyList());
     }
 
-    @Test
-    @DisplayName("Debe parsear exitosamente JSON con claves insensibles a mayúsculas/minúsculas")
-    void consultarListaProductos_exitosoJson() {
-        // Arrange
-        when(productosClient.getProductListRaw()).thenReturn(jsonEjemploPuntoRed);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+    private static String xmlConCodigo(String codigo) {
+        return "<RESPONSE><MENSAJE><CODIGO>" + codigo + "</CODIGO><TEXTO>Texto del proveedor</TEXTO></MENSAJE></RESPONSE>";
+    }
 
-        // Act
+    @Test
+    @DisplayName("Si GestoPago responde un código de error, se usa la copia local en lugar de reportar éxito")
+    void consultarListaProductos_codigoDeError_usaCopiaLocal() {
+        when(productosClient.getProductListRaw()).thenReturn(xmlConCodigo("02"));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(productoCatalogoRepository.findAll()).thenReturn(List.of(ProductoCatalogoEntity.builder()
+                .idProducto(888L).tipoFront(2).producto("Producto DB").fechaActualizacion(LocalDateTime.now()).build()));
+
         ProductoListResponse resultado = productoService.consultarListaProductos();
 
-        // Assert
-        assertNotNull(resultado);
-        assertEquals(CodigoRespuestaEnum.EXITO, resultado.getCodigoRespuesta());
-        assertEquals(0, resultado.getCodigo());
-        assertEquals(2, resultado.getProductos().size());
+        assertEquals("BASE_DE_DATOS", resultado.getOrigenDatos());
+        assertEquals(CodigoRespuestaEnum.DATOS_DESDE_BASE_DE_DATOS, resultado.getCodigoRespuesta());
+        verify(productoCatalogoRepository, never()).saveAll(anyList());
+        verify(valueOperations, never()).set(anyString(), any(), any(Duration.class));
+    }
 
-        ProductoItemDTO p1 = resultado.getProductos().get(0);
-        assertEquals(19457L, p1.getIdProducto());
-        assertEquals(1, p1.getTipoFront());
-        assertEquals(new BigDecimal("640.0"), p1.getPrecio());
-        assertFalse(p1.getHasDigitoVerificador());
+    @Test
+    @DisplayName("Código de error y sin copia local: falla con 502, sin reportar un catálogo vacío como exitoso")
+    void consultarListaProductos_codigoDeError_sinCopiaLocal() {
+        when(productosClient.getProductListRaw()).thenReturn(xmlConCodigo("99"));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(productoCatalogoRepository.findAll()).thenReturn(Collections.emptyList());
 
-        verify(productosClient, times(1)).getProductListRaw();
+        ExternalServiceException ex = assertThrows(ExternalServiceException.class,
+                () -> productoService.consultarListaProductos());
+
+        assertEquals(502, ex.getStatusCode());
+        assertTrue(ex.getMessage().contains("99"), ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Una respuesta que no es XML se trata como inválida y usa el respaldo")
+    void consultarListaProductos_noXml_usaRespaldo() {
+        when(productosClient.getProductListRaw()).thenReturn("{\"mensaje\":\"no es xml\"}");
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(productoCatalogoRepository.findAll()).thenReturn(Collections.emptyList());
+
+        assertThrows(ExternalServiceException.class, () -> productoService.consultarListaProductos());
     }
 
     @Test

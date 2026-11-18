@@ -114,4 +114,21 @@ class BiometricServiceImplTest {
 
         assertTrue(resultado);
     }
+
+    @Test
+    @DisplayName("Dato escalar contra valor cifrado: se compara descifrando, no comparando textos cifrados")
+    void testVerificarEscalarContraValorCifrado() {
+        when(cryptoService.decryptBiometrics("enc_escalar")).thenReturn(new BigDecimal("123.450"));
+
+        assertTrue(biometricService.verificarBiometriaFacial(null, new BigDecimal("123.45"), "enc_escalar", null, null));
+        assertFalse(biometricService.verificarBiometriaFacial(null, new BigDecimal("999"), "enc_escalar", null, null));
+    }
+
+    @Test
+    @DisplayName("Si el valor enrolado no se puede descifrar, la verificación falla sin lanzar error")
+    void testVerificarEscalarValorIlegible() {
+        when(cryptoService.decryptBiometrics("dañado")).thenThrow(new RuntimeException("no se puede descifrar"));
+
+        assertFalse(biometricService.verificarBiometriaFacial(null, new BigDecimal("1"), "dañado", null, null));
+    }
 }
